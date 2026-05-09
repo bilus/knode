@@ -1,0 +1,4 @@
+* DONE Spike using shelly to run ~git status~
+* TODO Dataflow diagrams
+* TODO Requirements
+* TODO Architecture diagram

@@ -1,0 +1,23 @@
+{
+  "packages": [
+    "ghc@9.10.3",
+    "cabal-install@latest",
+    "stack@latest",
+    "hpack@latest",
+    "haskell-language-server@latest",
+    "hlint@latest",
+    "ormolu@latest",
+    "haskellPackages.hoogle",
+      "haskellPackages.floskell",
+    "gmp@latest",
+    "zlib@latest"
+  ],
+  "env": {
+    "PATH": "$PATH:/usr/bin"
+  },
+  "shell": {
+    "init_hook": [
+      "echo \"knode dev shell — ghc $(ghc --numeric-version), hls $(haskell-language-server-wrapper --numeric-version 2>/dev/null || echo '?')\""
+    ]
+  }
+}
