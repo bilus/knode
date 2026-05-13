@@ -21,7 +21,11 @@ import System.FilePath ((</>))
 type App a = ExceptT AppError Sh a
 
 runApp :: App a -> IO (Either AppError a)
-runApp = Sh.shelly . (Sh.errExit False) . runExceptT
+runApp =
+    runShelly . handleException . runExceptT
+  where
+    runShelly = Sh.shelly . (Sh.errExit False)
+    handleException action = Sh.catchany_sh action (const $ return $ Left InternalError)
 
 data Page = Page FilePath
 
@@ -67,9 +71,10 @@ edit :: ClonedRepo -> Page -> Text -> Text -> App ()
 edit = undefined
 
 data AppError
-    = ShellError {exitCode :: Int}
-    | WrongRepo RepoUrl FilePath
-    | NoSuchDir FilePath
+    = ShellError !Int
+    | WrongRepo !RepoUrl !FilePath
+    | NoSuchDir !FilePath
+    | InternalError
     deriving (Show)
 
 -- | Lift a Sh action into App, converting exceptions to the given error.
