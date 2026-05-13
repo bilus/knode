@@ -6,18 +6,24 @@
     "hpack@latest",
     "haskell-language-server@latest",
     "hlint@latest",
-    "ormolu@latest",
+    "path:./flakes/ormolu#default",
     "haskellPackages.hoogle",
-      "haskellPackages.floskell",
     "gmp@latest",
-    "zlib@latest"
+    "zlib@latest",
+    "python@3.12",
+    "pipx",
+    "graphviz",
+    "stylish-haskell@latest",
+    "fourmolu@latest"
   ],
   "env": {
     "PATH": "$PATH:/usr/bin"
   },
   "shell": {
     "init_hook": [
-      "echo \"knode dev shell — ghc $(ghc --numeric-version), hls $(haskell-language-server-wrapper --numeric-version 2>/dev/null || echo '?')\""
+      "echo \"knode dev shell — ghc $(ghc --numeric-version), hls $(haskell-language-server-wrapper --numeric-version 2>/dev/null || echo '?')\"",
+      "pipx install data-flow-diagram",
+      "pipx inject data-flow-diagram typing_extensions"
     ]
   }
 }

@@ -49,6 +49,54 @@
         }
       }
     },
+    "fourmolu@latest": {
+      "last_modified": "2026-04-23T13:07:47Z",
+      "resolved": "github:NixOS/nixpkgs/01fbdeef22b76df85ea168fbfe1bfd9e63681b30#fourmolu",
+      "source": "devbox-search",
+      "version": "0.19.0.1",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/mr0v5mdbhyncx83gjr42i9qvlvnhip98-fourmolu-0.19.0.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/mr0v5mdbhyncx83gjr42i9qvlvnhip98-fourmolu-0.19.0.1"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/l85pkc1q30rm0rlja4cdzwcsrd79v0bl-fourmolu-0.19.0.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/l85pkc1q30rm0rlja4cdzwcsrd79v0bl-fourmolu-0.19.0.1"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/7dqgd2l0s16zqd95nam6bih3km17ixd9-fourmolu-0.19.0.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/7dqgd2l0s16zqd95nam6bih3km17ixd9-fourmolu-0.19.0.1"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/aifxd405dcb30sax0p96dcpjxk40ns9p-fourmolu-0.19.0.1",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/aifxd405dcb30sax0p96dcpjxk40ns9p-fourmolu-0.19.0.1"
+        }
+      }
+    },
     "ghc@9.10.3": {
       "last_modified": "2026-04-23T13:07:47Z",
       "plugin_version": "0.0.2",
@@ -115,8 +163,8 @@
       }
     },
     "github:NixOS/nixpkgs/nixpkgs-unstable": {
-      "last_modified": "2026-05-07T03:23:16Z",
-      "resolved": "github:NixOS/nixpkgs/68a8af93ff4297686cb68880845e61e5e2e41d92?lastModified=1778124196&narHash=sha256-pYEytCNic%2FczazbV9r3tbQ6BZzqRBg%2F41x2dIC5ymOo%3D"
+      "last_modified": "2026-05-12T01:56:55Z",
+      "resolved": "github:NixOS/nixpkgs/0a0bf409f3593f415d0a554f33acc63dc7dccb43?lastModified=1778551015&narHash=sha256-j299xXVjlKs5WtVkKSgEXZGvpTTw5X2iWwKs4KWv%2FAg%3D"
     },
     "gmp@latest": {
       "last_modified": "2026-04-23T13:07:47Z",
@@ -198,6 +246,10 @@
         }
       }
     },
+    "graphviz": {
+      "resolved": "github:NixOS/nixpkgs/68a8af93ff4297686cb68880845e61e5e2e41d92?narHash=sha256-pYEytCNic%2FczazbV9r3tbQ6BZzqRBg%2F41x2dIC5ymOo%3D#graphviz",
+      "source": "nixpkg"
+    },
     "haskell-language-server@latest": {
       "last_modified": "2026-04-23T13:07:47Z",
       "resolved": "github:NixOS/nixpkgs/01fbdeef22b76df85ea168fbfe1bfd9e63681b30#haskell-language-server",
@@ -243,20 +295,6 @@
             }
           ],
           "store_path": "/nix/store/gyvi34dprwzhk8vil7rbaw0f0c6lsdbc-haskell-language-server-2.13.0.0"
-        }
-      }
-    },
-    "haskellPackages.floskell": {
-      "resolved": "github:NixOS/nixpkgs/68a8af93ff4297686cb68880845e61e5e2e41d92?narHash=sha256-pYEytCNic%2FczazbV9r3tbQ6BZzqRBg%2F41x2dIC5ymOo%3D#haskellPackages.floskell",
-      "source": "nixpkg",
-      "systems": {
-        "aarch64-darwin": {
-          "outputs": [
-            {
-              "path": "/nix/store/7ijy3n9r953jb11pc9hqja43vh6qvskv-floskell-0.11.1",
-              "default": true
-            }
-          ]
         }
       }
     },
@@ -387,67 +425,64 @@
         }
       }
     },
-    "ormolu@latest": {
+    "pipx": {
+      "resolved": "github:NixOS/nixpkgs/68a8af93ff4297686cb68880845e61e5e2e41d92?narHash=sha256-pYEytCNic%2FczazbV9r3tbQ6BZzqRBg%2F41x2dIC5ymOo%3D#pipx",
+      "source": "nixpkg"
+    },
+    "python@3.12": {
       "last_modified": "2026-04-23T13:07:47Z",
-      "resolved": "github:NixOS/nixpkgs/01fbdeef22b76df85ea168fbfe1bfd9e63681b30#ormolu",
+      "plugin_version": "0.0.4",
+      "resolved": "github:NixOS/nixpkgs/01fbdeef22b76df85ea168fbfe1bfd9e63681b30#python312",
       "source": "devbox-search",
-      "version": "0.8.0.2",
+      "version": "3.12.13",
       "systems": {
         "aarch64-darwin": {
           "outputs": [
             {
-              "name": "bin",
-              "path": "/nix/store/p6qmchqb069aphwl5ngyknvnhirbxs5w-ormolu-0.8.0.2-bin",
-              "default": true
-            },
-            {
               "name": "out",
-              "path": "/nix/store/399h5xrmvr1sac6addngf0qaz1jy6mck-ormolu-0.8.0.2"
+              "path": "/nix/store/fn6fnl5cg8qnsn1xn3lwaahk48vyw9l7-python3-3.12.13",
+              "default": true
             }
           ],
-          "store_path": "/nix/store/p6qmchqb069aphwl5ngyknvnhirbxs5w-ormolu-0.8.0.2-bin"
+          "store_path": "/nix/store/fn6fnl5cg8qnsn1xn3lwaahk48vyw9l7-python3-3.12.13"
         },
         "aarch64-linux": {
           "outputs": [
             {
-              "name": "bin",
-              "path": "/nix/store/4km7jqadxffnhmwk5icga2x1ck8xdpv0-ormolu-0.8.0.2-bin",
+              "name": "out",
+              "path": "/nix/store/jczbi6lb8vws7zc251v47bpijh805lyg-python3-3.12.13",
               "default": true
             },
             {
-              "name": "out",
-              "path": "/nix/store/vhkbkshnl82xqmnk8qcwfqy286yar8ng-ormolu-0.8.0.2"
+              "name": "debug",
+              "path": "/nix/store/2x5zchy1i0bprgxdvn5crjjmc4dw83p1-python3-3.12.13-debug"
             }
           ],
-          "store_path": "/nix/store/4km7jqadxffnhmwk5icga2x1ck8xdpv0-ormolu-0.8.0.2-bin"
+          "store_path": "/nix/store/jczbi6lb8vws7zc251v47bpijh805lyg-python3-3.12.13"
         },
         "x86_64-darwin": {
           "outputs": [
             {
-              "name": "bin",
-              "path": "/nix/store/8xxpglr7zqi3wl9ay31c9kaz75fj916k-ormolu-0.8.0.2-bin",
-              "default": true
-            },
-            {
               "name": "out",
-              "path": "/nix/store/7al569y1csz2vlnghnjn75s69c3hmnw4-ormolu-0.8.0.2"
+              "path": "/nix/store/074rsjnaz8sf3xdf09a16zcw1qf8cj81-python3-3.12.13",
+              "default": true
             }
           ],
-          "store_path": "/nix/store/8xxpglr7zqi3wl9ay31c9kaz75fj916k-ormolu-0.8.0.2-bin"
+          "store_path": "/nix/store/074rsjnaz8sf3xdf09a16zcw1qf8cj81-python3-3.12.13"
         },
         "x86_64-linux": {
           "outputs": [
             {
-              "name": "bin",
-              "path": "/nix/store/r7z97msmw85i03nsxs2bpry717c02gqf-ormolu-0.8.0.2-bin",
+              "name": "out",
+              "path": "/nix/store/h3q2g9wq4x3q84164qsfm3lz5djj0bf3-python3-3.12.13",
               "default": true
             },
             {
-              "name": "out",
-              "path": "/nix/store/p5l7180b9s3cf4j79nsdz8vg8qzk5lgg-ormolu-0.8.0.2"
+              "name": "debug",
+              "path": "/nix/store/8hjni6450l0l4m5cvlxjb6wn7r0ynffl-python3-3.12.13-debug"
             }
           ],
-          "store_path": "/nix/store/r7z97msmw85i03nsxs2bpry717c02gqf-ormolu-0.8.0.2-bin"
+          "store_path": "/nix/store/h3q2g9wq4x3q84164qsfm3lz5djj0bf3-python3-3.12.13"
         }
       }
     },
@@ -494,6 +529,54 @@
             }
           ],
           "store_path": "/nix/store/ddy6j29ybxsm4j2cy06xhn6kcwiag67r-stack-3.9.3"
+        }
+      }
+    },
+    "stylish-haskell@latest": {
+      "last_modified": "2026-04-23T13:07:47Z",
+      "resolved": "github:NixOS/nixpkgs/01fbdeef22b76df85ea168fbfe1bfd9e63681b30#stylish-haskell",
+      "source": "devbox-search",
+      "version": "0.15.1.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/4jpwwf41gikh8jjx7s5s88p1jf93pmw2-stylish-haskell-0.15.1.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/4jpwwf41gikh8jjx7s5s88p1jf93pmw2-stylish-haskell-0.15.1.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/c2jxbhxkm4hw96swng2i1zaq10mbldiz-stylish-haskell-0.15.1.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/c2jxbhxkm4hw96swng2i1zaq10mbldiz-stylish-haskell-0.15.1.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/jwflxqnrwlaih9mc21mivljdvmp648c4-stylish-haskell-0.15.1.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/jwflxqnrwlaih9mc21mivljdvmp648c4-stylish-haskell-0.15.1.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/6xg31w7rmr4mx178dvhs39cwyfkdmnb1-stylish-haskell-0.15.1.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/6xg31w7rmr4mx178dvhs39cwyfkdmnb1-stylish-haskell-0.15.1.0"
         }
       }
     },
