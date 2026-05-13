@@ -1,0 +1,45 @@
+* Requirements
+** Modify page
+#+begin_quote
+When asked to modify a page, the system shall publish it immediately
+#+end_quote
+** Create page
+#+begin_quote
+When asked to create a page, the system shall publish it immediately
+#+end_quote
+** Delete page
+#+begin_quote
+When asked to delete a page, the system shall publish the removal immediately.
+#+end_quote
+** Batching changes to pages
+#+begin_quote
+When asked to batch changes (modify/create/delete), the system shall publish them atomically.
+#+end_quote
+** Conflicts when changing pages
+#+begin_quote
+When publishing chages, if there is a conflict, the system shall report which pages have a conflict.
+#+end_quote
+** Stale page modifications
+#+begin_quote
+When asked to modify a page, if the text to replace does not exist, the system shall report the error.
+#+end_quote
+** Search
+#+begin_quote
+When asked to search for pages, the system shall return all matching page paths and matching fragments.
+#+end_quote
+** Links to pages
+#+begin_quote
+When asked for the link to a page given its path, the system shall provide it, if the page exists, or report an error otherwise.
+#+end_quote
+** Error reporting
+#+begin_quote
+When reporting errors, the system shall include the page path.
+#+end_quote
+** Grep
+#+begin_quote
+When asked to grep a page, the system shall return matching lines.
+#+end_quote
+** Changelog
+#+begin_quote
+When making changes to pages, the system shall describe the changes.
+#+end_quote

@@ -1,4 +1,7 @@
 * DONE Spike using shelly to run ~git status~
-* TODO Dataflow diagrams
-* TODO Requirements
-* TODO Architecture diagram
+* DONE Dataflow diagrams
+* DONE Fix emacs
+- [X] font lock mode
+- [X] format on save
+* DONE Requirements
+* DONE Architecture diagram or types

@@ -1,0 +1,16 @@
+entity   Agent
+process  Clone  Ensure repo cloned
+process  Modify Modify file
+process  Commit Commit changes
+process  Push   Push to remote
+store    Config
+store    Remote  Remote
+
+
+Agent  --> Clone   file, contents, msg
+Config --> Clone   repo url, dir, msg
+Remote --> Clone   repo
+Clone  --> Modify  dir, file, contents, msg
+Modify --> Commit  dir, msg
+Commit --> Push dir
+Push   --> Remote
