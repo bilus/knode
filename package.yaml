@@ -48,6 +48,9 @@ executables:
     - knode
     - shelly
     - text
+    - bytestring
+    - filepath
+    - mtl
 
 tests:
   knode-test:
