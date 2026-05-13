@@ -71,7 +71,7 @@ edit :: ClonedRepo -> Page -> Text -> Text -> App ()
 edit = undefined
 
 data AppError
-    = ShellError !Int
+    = ShellError !(Maybe FilePath) !String ![Text] !Int
     | WrongRepo !RepoUrl !FilePath
     | NoSuchDir !FilePath
     | InternalError
@@ -93,7 +93,7 @@ shell cwd cmd args = do
         Nothing -> return ()
     output <- lift $ Sh.run cmd args
     exitCode <- lift $ Sh.lastExitCode
-    when (exitCode /= 0) $ throwError $ ShellError exitCode
+    when (exitCode /= 0) $ throwError $ ShellError cwd cmd args exitCode
     return output
 
 -- | Run a shell command, discarding stdout.
@@ -105,8 +105,10 @@ shell_ cwd cmd args = do
 -- | Clone a git repository to the specified path.
 cloneRepo :: RepoUrl -> FilePath -> App ClonedRepo
 cloneRepo repoUrl@(RepoUrl repo) repoPath = do
-    shell_ Nothing "git" ["clone", repo, T.pack repoPath]
+    git ["clone", repo, T.pack repoPath]
     return ClonedRepo{..}
+  where
+    git = shell_ Nothing "git"
 
 -- | True if action successful.
 success :: App a -> App Bool
@@ -120,24 +122,30 @@ isGitRepo repoPath = do
         then
             return False
         else
-            success $ shell (Just repoPath) "git" ["rev-parse", "--git-dir"]
+            success $ git ["rev-parse", "--git-dir"]
+  where
+    git = shell (Just repoPath) "git"
 
 -- | Is the directory this git repo. Error if not git repo or dir doesn't exist.
-isThisRepo :: RepoUrl -> FilePath -> App Bool
-isThisRepo (RepoUrl repoUrl) repoPath = do
-    url <- shell (Just repoPath) "git" ["remote", "get-url", "origin"]
+isCorrectRepo :: RepoUrl -> FilePath -> App Bool
+isCorrectRepo (RepoUrl repoUrl) repoPath = do
+    url <- git ["remote", "get-url", "origin"]
     return $ T.strip url == repoUrl
+  where
+    git = shell (Just repoPath) "git"
 
 -- | Fetch and reset an existing repository to match origin/HEAD.
 resetRepo :: RepoUrl -> FilePath -> App ClonedRepo
 resetRepo repoUrl repoPath = do
     whenM
-        (not <$> (isThisRepo repoUrl repoPath))
+        (not <$> isCorrectRepo repoUrl repoPath)
         (throwError $ WrongRepo repoUrl repoPath)
 
-    shell_ (Just repoPath) "git" ["fetch", "origin"]
-    shell_ (Just repoPath) "git" ["reset", "--hard", "origin/HEAD"]
+    git ["fetch", "origin"]
+    git ["reset", "--hard", "origin/HEAD"]
     return ClonedRepo{..}
+  where
+    git = shell_ (Just repoPath) "git"
 
 -- | Clone a repository if it doesn't exist, or update it if it does.
 prepareRepo :: RepoUrl -> FilePath -> App ClonedRepo
