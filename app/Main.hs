@@ -74,8 +74,31 @@ data AppError
     = ShellError !(Maybe FilePath) !String ![Text] !Int
     | WrongRepo !RepoUrl !FilePath
     | NoSuchDir !FilePath
+    | PushFailed ![FilePath]
     | InternalError
     deriving (Show)
+
+-- | Format error message for AI agent consumption.
+verboseError :: AppError -> Text
+verboseError (ShellError mPath cmd args code) =
+    "Command failed: "
+        <> T.pack cmd
+        <> " "
+        <> T.unwords args
+        <> " (exit code "
+        <> T.pack (show code)
+        <> ")"
+        <> maybe "" (\p -> " in directory " <> T.pack p) mPath
+verboseError (WrongRepo (RepoUrl expected) path) =
+    "Repository at " <> T.pack path <> " has wrong origin. Expected: " <> expected
+verboseError (NoSuchDir path) =
+    "Directory does not exist: " <> T.pack path
+verboseError (PushFailed conflicts) =
+    "Push failed due to conflicts in: "
+        <> T.intercalate ", " (map T.pack conflicts)
+        <> ". Fetch latest changes and retry."
+verboseError InternalError =
+    "Internal error occurred. This may be a bug."
 
 -- | Lift a Sh action into App, converting exceptions to the given error.
 liftSh :: AppError -> Sh a -> App a
@@ -154,6 +177,26 @@ prepareRepo repoUrl repoPath =
         (isGitRepo repoPath)
         (resetRepo repoUrl repoPath)
         (cloneRepo repoUrl repoPath)
+
+push :: ClonedRepo -> App ()
+push ClonedRepo{..} = do
+    pushed <- success $ git_ ["push"]
+    when pushed $ return ()
+    git_ ["fetch", "origin"]
+    rebased <- success $ git ["rebase", "origin/HEAD"]
+    when rebased $ git_ ["push"]
+    conflicts <- parseConflicts <$> git ["status", "--porcelain"]
+    throwError $ PushFailed conflicts
+  where
+    git_ = shell_ (Just repoPath) "git"
+    git = shell (Just repoPath) "git"
+    parseConflicts :: Text -> [FilePath]
+    parseConflicts output =
+        -- Lines starting with "UU " are unmerged (conflict)
+        [ T.unpack (T.drop 3 line)
+        | line <- T.lines output
+        , "UU " `T.isPrefixOf` line
+        ]
 
 -- | Get the full filesystem path for a page within a repository.
 pageFullPath :: ClonedRepo -> Page -> FilePath

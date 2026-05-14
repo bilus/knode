@@ -43,3 +43,8 @@ When asked to grep a page, the system shall return matching lines.
 #+begin_quote
 When making changes to pages, the system shall describe the changes.
 #+end_quote
+** Sessions
+#+begin_quote
+When making changes, each agent session has its own isolated local repo clone.
+#+end_quote
+**
