@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Main (main) where
 
@@ -9,15 +10,15 @@ import Knode.Wiki
 
 main :: IO ()
 main = do
-    result <- runWiki $ do
-        input <- liftIO TIO.getContents
-        changes <- liftEither $ parseChanges input
-        repo <- fetch repoUrl repoPath
-        mapM_ (applyChange repo) changes
-        push repo
+    result <- runWiki repo $ do
+        fetch
+        readFromStdio >>= mapM_ applyChange
+        push
     case result of
         Right _ -> putStrLn "Success!"
         Left e -> TIO.putStrLn $ verboseError e
   where
+    readFromStdio = liftIO TIO.getContents >>= liftEither . parseChanges
     repoPath = "/tmp/repo"
     repoUrl = RepoUrl "git@github.com:bilus/knode-test.git"
+    repo = Repo{..}

@@ -15,7 +15,7 @@ module Knode.Wiki (
     Page (..),
     Change (..),
     RepoUrl (..),
-    Repo,
+    Repo (..),
 
     -- * Errors
     WikiError,
@@ -29,10 +29,11 @@ module Knode.Wiki (
 )
 where
 
-import Control.Exception (SomeException, displayException)
+import Control.Exception (displayException)
 import Control.Monad (unless, when)
 import Control.Monad.Except (ExceptT (..), MonadError (catchError), runExceptT, throwError)
 import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Reader (ReaderT, asks, runReaderT)
 import Control.Monad.Trans (lift)
 import Data.Aeson (FromJSON, ToJSON, eitherDecodeStrict)
 import Data.Bifunctor (first)
@@ -46,15 +47,18 @@ import qualified Shelly as Sh
 import System.FilePath (takeDirectory, (</>))
 
 -- | The wiki monad, combining error handling with shell operations.
-type Wiki a = ExceptT WikiError Sh a
+type Wiki a = ReaderT Config (ExceptT WikiError Sh) a
+
+-- | Wiki configuration passed via ReaderT.
+type Config = Repo
 
 -- | Run a Wiki action, returning either an error or the result.
-runWiki :: Wiki a -> IO (Either WikiError a)
-runWiki =
-    runShelly . handleException . runExceptT
+runWiki :: Repo -> Wiki a -> IO (Either WikiError a)
+runWiki r action =
+    runShelly . handleException . runExceptT . runReaderT action $ r
   where
     runShelly = Sh.shelly . Sh.errExit False
-    handleException = Sh.handleany_sh (return . Left . InternalError)
+    handleException = Sh.handleany_sh (return . Left . InternalError . displayException)
 
 -- | A wiki page identified by its path.
 data Page = Page FilePath
@@ -76,7 +80,7 @@ instance ToJSON Change
 
 -- | Remote git repository URL.
 data RepoUrl = RepoUrl Text
-    deriving (Show)
+    deriving (Show, Eq)
 
 -- | A locally cloned git repository.
 data Repo = Repo
@@ -93,7 +97,7 @@ data WikiError
     | PushConflict ![FilePath]
     | ParseError !String !Text
     | WriteError !Page !String
-    | InternalError !SomeException
+    | InternalError !String
     deriving (Show)
 
 -- | Format error message for AI agent consumption.
@@ -119,8 +123,8 @@ verboseError (ParseError msg _) =
     "Error parsing JSON input: " <> T.pack msg
 verboseError (WriteError (Page path) err) =
     "Error writing to " <> T.pack path <> ": " <> T.pack err
-verboseError (InternalError ex) =
-    "Internal error occurred (" <> T.pack (displayException ex) <> "). This may be a bug."
+verboseError (InternalError msg) =
+    "Internal error occurred (" <> T.pack msg <> "). This may be a bug."
 
 -- | Parse newline-delimited JSON changes from text input.
 parseChanges :: Text -> Either WikiError [Change]
@@ -129,41 +133,38 @@ parseChanges = traverse parseChange . T.lines
     parseChange line = first (flip ParseError line) $ eitherDecodeStrict $ TE.encodeUtf8 line
 
 -- | Clone a repository if it doesn't exist, or update it if it does.
-fetch :: RepoUrl -> FilePath -> Wiki Repo
-fetch repoUrl repoPath =
+fetch :: Wiki ()
+fetch = do
     ifM
-        (isGitRepo repoPath)
-        (resetRepo repoUrl repoPath)
-        (cloneRepo repoUrl repoPath)
+        isGitRepo
+        resetRepo
+        cloneRepo
 
 -- | Apply a change to a page and commit it.
-applyChange :: Repo -> Change -> Wiki ()
-applyChange repo change = do
+applyChange :: Change -> Wiki ()
+applyChange change = do
     case change of
-        Write page content -> applyWriteFile repo page content
-        Edit page old new -> applyEditFile repo page old new
-    commit repo change
+        Write page content -> applyWriteFile page content
+        Edit page old new -> applyEditFile page old new
+    commit change
 
-status :: FilePath -> Wiki Text
-status repoPath = git ["status", "--porcelain"]
-  where
-    git = shell (Just repoPath) "git"
+status :: Wiki Text
+status = git ["status", "--porcelain"]
 
 -- | Push changes to remote, handling conflicts via rebase.
-push :: Repo -> Wiki ()
-push Repo{..} = do
-    pushed <- success $ git_ ["push"]
+push :: Wiki ()
+push = do
+    pushed <- zeroExit $ git_ ["push"]
     unless pushed $ do
         git_ ["fetch", "origin"]
-        rebased <- success $ git_ ["rebase", "origin/HEAD"]
+        rebased <- zeroExit $ git_ ["rebase", "origin/HEAD"]
         if rebased
             then git_ ["push"]
             else do
-                conflicts <- parseConflicts <$> status repoPath
+                conflicts <- parseConflicts <$> status
                 git_ ["rebase", "--abort"]
                 throwError $ PushConflict conflicts
   where
-    git_ = shell_ (Just repoPath) "git"
     parseConflicts output =
         [ T.unpack (T.drop 3 line)
         | line <- T.lines output
@@ -172,28 +173,39 @@ push Repo{..} = do
 
 -- Internal functions
 
-hasStaged :: FilePath -> Wiki Bool
-hasStaged repoPath = not <$> success (shell_ (Just repoPath) "git" ["diff", "--cached", "--quiet"])
+repo :: Wiki Repo
+repo = asks id
 
-applyWriteFile :: Repo -> Page -> Text -> Wiki ()
-applyWriteFile repo page content = do
+git :: [Text] -> Wiki Text
+git args = do
+    Repo{repoPath} <- repo
+    shell (Just repoPath) "git" args
+
+git_ :: [Text] -> Wiki ()
+git_ args = () <$ git args
+
+hasStaged :: Wiki Bool
+hasStaged = not <$> zeroExit (git_ ["diff", "--cached", "--quiet"])
+
+applyWriteFile :: Page -> Text -> Wiki ()
+applyWriteFile page content = do
+    r <- repo
+    let outputPath = pageFullPath r page
+        outputDir = takeDirectory outputPath
     lsh ("mkdir -p " <> outputDir) $ Sh.mkdir_p outputDir
     lsh ("cat > " <> outputPath) $ Sh.writefile outputPath content
   where
     lsh cmdLog = liftSh (T.pack cmdLog) (WriteError page)
-    outputPath = pageFullPath repo page
-    outputDir = takeDirectory outputPath
 
-applyEditFile :: Repo -> Page -> Text -> Text -> Wiki ()
+applyEditFile :: Page -> Text -> Text -> Wiki ()
 applyEditFile = undefined
 
-commit :: Repo -> Change -> Wiki ()
-commit Repo{..} change = do
+commit :: Change -> Wiki ()
+commit change = do
     git_ ["add", pagePath]
-    whenM (hasStaged repoPath) $
+    whenM hasStaged $
         git_ ["commit", "-m", commitMsg]
   where
-    git_ = shell_ (Just repoPath) "git"
     (pagePath, commitMsg) = case change of
         Write (Page (T.pack -> p)) _ -> (p, "Added " <> p)
         Edit (Page (T.pack -> p)) _ _ -> (p, "Edited " <> p)
@@ -201,7 +213,9 @@ commit Repo{..} change = do
 liftSh :: Text -> (String -> WikiError) -> Sh a -> Wiki a
 liftSh cmdLog err action = do
     logCmd cmdLog
-    ExceptT $ Sh.catchany_sh (Right <$> action) (return . Left . err . displayException)
+    lift $ ExceptT $ Sh.catchany_sh (Right <$> action) onError
+  where
+    onError = return . Left . err . displayException
 
 logCmd :: Text -> Wiki ()
 logCmd msg = liftIO $ TIO.putStrLn $ "$ " <> msg
@@ -215,47 +229,56 @@ shell cwd cmd args = do
         Just path -> cd path
         Nothing -> return ()
     logCmd $ T.pack cmd <> " " <> T.unwords args
-    output <- lift $ Sh.run cmd args
-    exitCode <- lift $ Sh.lastExitCode
+    output <- lift . lift $ Sh.run cmd args
+    exitCode <- lift . lift $ Sh.lastExitCode
     when (exitCode /= 0) $ throwError $ ShellError cwd cmd args exitCode
     return output
 
 shell_ :: Maybe FilePath -> String -> [Text] -> Wiki ()
 shell_ cwd cmd args = () <$ shell cwd cmd args
 
-cloneRepo :: RepoUrl -> FilePath -> Wiki Repo
-cloneRepo repoUrl@(RepoUrl repo) repoPath = do
-    shell_ Nothing "git" ["clone", repo, T.pack repoPath]
-    return Repo{..}
+cloneRepo :: Wiki ()
+cloneRepo = do
+    Repo{repoUrl, repoPath} <- repo
+    let (RepoUrl url) = repoUrl
+    -- Cannot use `git` function because dir isn't there yet.
+    gitNoDir ["clone", url, T.pack repoPath]
+  where
+    gitNoDir = shell_ Nothing "git"
 
-success :: Wiki a -> Wiki Bool
-success m = catchError (True <$ m) (const $ return False)
+zeroExit :: Wiki a -> Wiki Bool
+zeroExit m = catchError (True <$ m) (const $ return False)
 
-isGitRepo :: FilePath -> Wiki Bool
-isGitRepo repoPath = do
-    exists <- lift $ Sh.test_d repoPath
-    if not exists
-        then return False
-        else success $ shell (Just repoPath) "git" ["rev-parse", "--git-dir"]
+isGitRepo :: Wiki Bool
+isGitRepo = do
+    Repo{repoPath} <- repo
+    (test_d repoPath) `andM` (zeroExit $ git ["rev-parse", "--git-dir"])
+  where
+    test_d path =
+        liftSh (T.pack $ "test " <> path) InternalError $ Sh.test_d path
 
-isCorrectRepo :: RepoUrl -> FilePath -> Wiki Bool
-isCorrectRepo (RepoUrl repoUrl) repoPath = do
-    url <- shell (Just repoPath) "git" ["remote", "get-url", "origin"]
-    return $ T.strip url == repoUrl
-
-resetRepo :: RepoUrl -> FilePath -> Wiki Repo
-resetRepo repoUrl repoPath = do
-    whenM (not <$> isCorrectRepo repoUrl repoPath) $
+assertCorrectRepo :: Wiki ()
+assertCorrectRepo = do
+    Repo{repoUrl, repoPath} <- repo
+    whenM (not <$> isCorrectRepo repoUrl) $
         throwError $
             WrongRepo repoUrl repoPath
-    git ["fetch", "origin"]
-    git ["reset", "--hard", "origin/HEAD"]
-    return Repo{..}
   where
-    git = shell_ (Just repoPath) "git"
+    isCorrectRepo repoUrl = do
+        output <- git ["remote", "get-url", "origin"]
+        return $ (RepoUrl $ T.strip output) == repoUrl
+
+resetRepo :: Wiki ()
+resetRepo = do
+    assertCorrectRepo
+    git_ ["fetch", "origin"]
+    git_ ["reset", "--hard", "origin/HEAD"]
 
 pageFullPath :: Repo -> Page -> FilePath
 pageFullPath Repo{repoPath} (Page pagePath) = repoPath </> pagePath
 
 ifM :: (Monad m) => m Bool -> m a -> m a -> m a
 ifM cond t f = cond >>= \b -> if b then t else f
+
+andM :: (Monad m) => m Bool -> m Bool -> m Bool
+andM ma mb = ma >>= \a -> if a then mb else return False

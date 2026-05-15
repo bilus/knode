@@ -6,4 +6,27 @@
 * DONE Requirements
 * DONE Architecture diagram or types
 * DONE write kinda works from CLI
-* TODO Create a test repo and add push
+* DONE Create a test repo and add push
+* DONE Use writer
+- ClonedRepo -> Repo
+- Add ReaderT
+- runWiki takes ClonedRepo
+- Add repo function to get repo from reader
+- Remove repo from function arguments
+ #+begin_src haskell
+main :: IO ()
+main = do
+    result <- runWiki repo $ do
+        changes <- liftIO TIO.getContents >>= liftEither parseChanges
+        fetch
+        mapM_ applyChange changes
+        push
+    case result of
+        Right _ -> putStrLn "Success!"
+        Left e -> TIO.putStrLn $ verboseError e
+  where
+    repoPath = "/tmp/repo"
+    repoUrl = RepoUrl "git@github.com:bilus/knode-test.git"
+    repo = Repo {..}
+ #+end_src
+* TODO Add tests
