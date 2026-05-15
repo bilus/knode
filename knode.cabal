@@ -6,12 +6,12 @@ cabal-version: 2.2
 
 name:           knode
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/knode#readme>
-homepage:       https://github.com/githubuser/knode#readme
-bug-reports:    https://github.com/githubuser/knode/issues
-author:         Author name here
-maintainer:     example@example.com
-copyright:      2026 Author name here
+description:    Wiki tool for AI agents
+homepage:       https://github.com/bilus/knode#readme
+bug-reports:    https://github.com/bilus/knode/issues
+author:         Marcin Bilski
+maintainer:     gyamtso@gmail.com
+copyright:      2026 Marcin Bilski
 license:        BSD-3-Clause
 license-file:   LICENSE
 build-type:     Simple
@@ -21,12 +21,13 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/knode
+  location: https://github.com/bilus/knode
 
 library
   exposed-modules:
-      Lib
+      Knode.Wiki
   other-modules:
+      Lib
       Paths_knode
   autogen-modules:
       Paths_knode
@@ -34,7 +35,13 @@ library
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
-      base >=4.7 && <5
+      aeson
+    , base >=4.7 && <5
+    , bytestring
+    , filepath
+    , mtl
+    , shelly
+    , text
   default-language: Haskell2010
 
 executable knode-exe
@@ -47,13 +54,9 @@ executable knode-exe
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      aeson
-    , base >=4.7 && <5
-    , bytestring
-    , filepath
+      base >=4.7 && <5
     , knode
     , mtl
-    , shelly
     , text
   default-language: Haskell2010
 
