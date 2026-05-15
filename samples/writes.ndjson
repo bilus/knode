@@ -1,0 +1,3 @@
+{"tag": "Write", "contents": ["page1.md", "Content 1"]}
+{"tag": "Write", "contents": ["page2.md", "Content 2"]}
+{"tag": "Edit", "contents": ["page1.md", "old text", "new text"]}

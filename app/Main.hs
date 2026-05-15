@@ -1,22 +1,28 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Main (main) where
 
 -- import Lib
 
+import Control.Exception (SomeException, displayException)
 import Control.Monad (when)
-import Control.Monad.Except (ExceptT (..), MonadError (catchError), runExceptT, throwError)
+import Control.Monad.Except (ExceptT (..), MonadError (catchError), liftEither, runExceptT, throwError)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans (lift)
-import qualified Data.ByteString as BS
+import Data.Aeson (FromJSON, ToJSON, eitherDecodeStrict)
+import Data.Bifunctor (first)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import qualified Data.Text.IO as TIO
+import GHC.Generics (Generic)
 import Shelly (Sh, whenM)
 import qualified Shelly as Sh
-import System.FilePath ((</>))
+import System.FilePath (takeDirectory, (</>))
 
 type App a = ExceptT AppError Sh a
 
@@ -25,14 +31,24 @@ runApp =
     runShelly . handleException . runExceptT
   where
     runShelly = Sh.shelly . (Sh.errExit False)
-    handleException action = Sh.catchany_sh action (const $ return $ Left InternalError)
+    handleException action =
+        Sh.handleany_sh (return . Left . InternalError) action
 
-data Page = Page FilePath
+data Page
+    = Page FilePath
+    deriving (Generic, Show)
+
+instance FromJSON Page
+instance ToJSON Page
 
 -- | Change to a wiki page.
 data Change
     = Write !Page !Text
     | Edit !Page !Text !Text
+    deriving (Generic, Show)
+
+instance FromJSON Change
+instance ToJSON Change
 
 -- | Remote git repository url.
 data RepoUrl = RepoUrl Text
@@ -47,12 +63,12 @@ data ClonedRepo = ClonedRepo
 
 -- | Apply a change to a page in the repository.
 applyChange :: ClonedRepo -> Change -> App ()
-applyChange repo (Write page content) = write repo page content
-applyChange repo (Edit page oldContent newContent) = edit repo page oldContent newContent
+applyChange repo (Write page content) = applyWrite repo page content
+applyChange repo (Edit page oldContent newContent) = applyEdit repo page oldContent newContent
 
 -- | Stage and commit a change to the repository.
-commit :: ClonedRepo -> Change -> App ()
-commit repo@(ClonedRepo{..}) change = lift $ do
+_commit :: ClonedRepo -> Change -> App ()
+_commit repo@(ClonedRepo{..}) change = lift $ do
     Sh.cd repoPath
     Sh.run_ "git" ["add", T.pack pagePath]
     Sh.run_ "git" ["commit", "-m", commitMsg]
@@ -62,20 +78,29 @@ commit repo@(ClonedRepo{..}) change = lift $ do
         Edit page _ _ -> (page, "Edited " <> T.pack (pageFullPath repo page))
 
 -- | Write content to a page, overwriting any existing content.
-write :: ClonedRepo -> Page -> Text -> App ()
-write repo page content = do
-    liftIO $ BS.writeFile (pageFullPath repo page) (TE.encodeUtf8 content)
+applyWrite :: ClonedRepo -> Page -> Text -> App ()
+applyWrite repo page content = do
+    lsh ("mkdir -p" <> outputDir) $ Sh.mkdir_p outputDir
+    lsh ("cat > " <> outputPath) $ Sh.writefile outputPath content
+  where
+    lsh cmdLog =
+        liftSh (T.pack cmdLog) (WriteError page)
+    outputPath = pageFullPath repo page
+    outputDir = takeDirectory outputPath
 
 -- | Replace old content with new content in a page.
-edit :: ClonedRepo -> Page -> Text -> Text -> App ()
-edit = undefined
+applyEdit :: ClonedRepo -> Page -> Text -> Text -> App ()
+applyEdit = undefined
 
 data AppError
     = ShellError !(Maybe FilePath) !String ![Text] !Int
     | WrongRepo !RepoUrl !FilePath
-    | NoSuchDir !FilePath
+    | NoSuchDir !FilePath !String
     | PushFailed ![FilePath]
-    | InternalError
+    | InputParseError !String !Text
+    | ShellyException !String
+    | WriteError !Page !String
+    | InternalError !SomeException
     deriving (Show)
 
 -- | Format error message for AI agent consumption.
@@ -91,29 +116,47 @@ verboseError (ShellError mPath cmd args code) =
         <> maybe "" (\p -> " in directory " <> T.pack p) mPath
 verboseError (WrongRepo (RepoUrl expected) path) =
     "Repository at " <> T.pack path <> " has wrong origin. Expected: " <> expected
-verboseError (NoSuchDir path) =
-    "Directory does not exist: " <> T.pack path
+verboseError (NoSuchDir path msg) =
+    "Directory does not exist: " <> T.pack path <> " (" <> T.pack msg <> ")"
 verboseError (PushFailed conflicts) =
     "Push failed due to conflicts in: "
         <> T.intercalate ", " (map T.pack conflicts)
         <> ". Fetch latest changes and retry."
-verboseError InternalError =
-    "Internal error occurred. This may be a bug."
+verboseError (InputParseError msg _) =
+    "Error parsing JSON input: "
+        <> T.pack msg
+verboseError (ShellyException msg) =
+    "Shell command resulted in an unexpected error: "
+        <> T.pack msg
+verboseError (WriteError (Page path) err) =
+    "Error writing to " <> T.pack path <> ": " <> T.pack err
+verboseError (InternalError ex) =
+    "Internal error occurred (" <> (T.pack $ displayException ex) <> "). This may be a bug."
 
 -- | Lift a Sh action into App, converting exceptions to the given error.
-liftSh :: AppError -> Sh a -> App a
-liftSh err action =
+liftSh :: Text -> (String -> AppError) -> Sh a -> App a
+liftSh cmdLog err action = do
+    logCmd cmdLog
     ExceptT $
         Sh.catchany_sh
             (Right <$> action)
-            (const $ return $ Left err)
+            -- TOdo: Do not display stack trace unless --debug
+            (\e -> return $ Left $ err $ displayException e)
+
+logCmd :: Text -> App ()
+logCmd msg =
+    liftIO $ TIO.putStrLn $ "$ " <> msg
+
+cd :: FilePath -> App ()
+cd path = liftSh (T.pack $ "cd " <> path) (NoSuchDir path) $ Sh.cd path
 
 -- | Run a shell command, returning stdout or an error with exit code.
 shell :: (Maybe FilePath) -> String -> [Text] -> App Text
 shell cwd cmd args = do
     case cwd of
-        Just path -> liftSh (NoSuchDir path) $ Sh.cd path
+        Just path -> cd path
         Nothing -> return ()
+    logCmd $ (T.pack cmd) <> " " <> T.unwords args
     output <- lift $ Sh.run cmd args
     exitCode <- lift $ Sh.lastExitCode
     when (exitCode /= 0) $ throwError $ ShellError cwd cmd args exitCode
@@ -178,8 +221,8 @@ prepareRepo repoUrl repoPath =
         (resetRepo repoUrl repoPath)
         (cloneRepo repoUrl repoPath)
 
-push :: ClonedRepo -> App ()
-push ClonedRepo{..} = do
+_push :: ClonedRepo -> App ()
+_push ClonedRepo{..} = do
     pushed <- success $ git_ ["push"]
     when pushed $ return ()
     git_ ["fetch", "origin"]
@@ -206,16 +249,26 @@ pageFullPath (ClonedRepo{repoPath}) (Page pagePath) =
 ifM :: (Monad m) => m Bool -> m a -> m a -> m a
 ifM cond t f = cond >>= \b -> if b then t else f
 
+parseChanges :: Text -> (Either AppError [Change])
+parseChanges =
+    (traverse parseChange) . T.lines
+  where
+    parseChange :: Text -> Either AppError Change
+    parseChange line =
+        first (flip InputParseError line) $ eitherDecodeStrict $ TE.encodeUtf8 line
+
 -- | Entry point.
 main :: IO ()
 main = do
     result <- runApp $ do
+        input <- liftIO TIO.getContents
+        changes <- liftEither $ parseChanges input
         repo <- prepareRepo repoUrl repoPath
-        liftIO $ putStrLn (show repo)
+        mapM_ (applyChange repo) changes
 
     case result of
         Right _ -> putStrLn "Success!"
-        Left e -> putStrLn $ show e
+        Left e -> TIO.putStrLn $ verboseError e
   where
     repoPath = "/tmp/repo"
     repoUrl = sampleRepoUrl
@@ -223,11 +276,15 @@ main = do
 ---------
 -- Sample data for testing
 
-sampleRepoUrl = RepoUrl "git@github.com:bilus/fencer.git"
+sampleRepoUrl :: RepoUrl
+sampleRepoUrl = RepoUrl "git@github.com:bilus/knode-test.git"
 
-sampleRepo =
+_sampleRepo :: ClonedRepo
+_sampleRepo =
     ClonedRepo
         { repoPath = "/tmp/repo"
         , repoUrl = sampleRepoUrl
         }
-sampleChange = Write (Page "test.txt") "Hello, World!"
+
+_sampleChange :: Change
+_sampleChange = Write (Page "test.txt") "Hello, World!"

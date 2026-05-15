@@ -5,3 +5,5 @@
 - [X] format on save
 * DONE Requirements
 * DONE Architecture diagram or types
+* DONE write kinda works from CLI
+* TODO Create a test repo and add push

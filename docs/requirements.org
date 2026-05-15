@@ -27,7 +27,7 @@ When asked to modify a page, if the text to replace does not exist, the system s
 #+begin_quote
 When asked to search for pages, the system shall return all matching page paths and matching fragments.
 #+end_quote
-** Links to pages
+** Show link
 #+begin_quote
 When asked for the link to a page given its path, the system shall provide it, if the page exists, or report an error otherwise.
 #+end_quote
@@ -37,7 +37,7 @@ When reporting errors, the system shall include the page path.
 #+end_quote
 ** Grep
 #+begin_quote
-When asked to grep a page, the system shall return matching lines.
+When asked to grep a page, the system shall return lines matching the provided regex and, optionally, the specified number of lines before and after the matching lines.
 #+end_quote
 ** Changelog
 #+begin_quote
@@ -47,4 +47,19 @@ When making changes to pages, the system shall describe the changes.
 #+begin_quote
 When making changes, each agent session has its own isolated local repo clone.
 #+end_quote
-**
+** Linking
+#+begin_quote
+When asked to create a link between 2 pages, the system shall update the "See also" sections at the bottom of the respective pages.
+#+end_quote
+** Directory creation
+#+begin_quote
+When the change is to a file under a non-existent directory, including nested directories, the system shall create them.
+#+end_quote
+** Sandboxing
+#+begin_quote
+When path to the changed page points outside of the cloned repository, the system shall reject the change.
+#+end_quote
+** Help
+#+begin_quote
+When help is requested, the system shall display a detailed prompt with usage instructions, including specification and examples of input JSON for all change types.
+#+end_quote

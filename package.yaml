@@ -51,6 +51,7 @@ executables:
     - bytestring
     - filepath
     - mtl
+    - aeson
 
 tests:
   knode-test:
