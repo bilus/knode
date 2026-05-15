@@ -1,15 +1,17 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Main (main) where
 
 -- import Lib
 
 import Control.Exception (SomeException, displayException)
-import Control.Monad (when)
+import Control.Monad (unless, when)
 import Control.Monad.Except (ExceptT (..), MonadError (catchError), liftEither, runExceptT, throwError)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans (lift)
@@ -67,15 +69,15 @@ applyChange repo (Write page content) = applyWrite repo page content
 applyChange repo (Edit page oldContent newContent) = applyEdit repo page oldContent newContent
 
 -- | Stage and commit a change to the repository.
-_commit :: ClonedRepo -> Change -> App ()
-_commit repo@(ClonedRepo{..}) change = lift $ do
+commit :: ClonedRepo -> Change -> App ()
+commit (ClonedRepo{..}) change = lift $ do
     Sh.cd repoPath
-    Sh.run_ "git" ["add", T.pack pagePath]
+    Sh.run_ "git" ["add", pagePath]
     Sh.run_ "git" ["commit", "-m", commitMsg]
   where
-    ((Page pagePath), commitMsg) = case change of
-        Write page _ -> (page, "Added " <> T.pack (pageFullPath repo page))
-        Edit page _ _ -> (page, "Edited " <> T.pack (pageFullPath repo page))
+    (pagePath, commitMsg) = case change of
+        Write (Page (T.pack -> p)) _ -> (p, "Added " <> p)
+        Edit (Page (T.pack -> p)) _ _ -> (p, "Edited " <> p)
 
 -- | Write content to a page, overwriting any existing content.
 applyWrite :: ClonedRepo -> Page -> Text -> App ()
@@ -221,15 +223,15 @@ prepareRepo repoUrl repoPath =
         (resetRepo repoUrl repoPath)
         (cloneRepo repoUrl repoPath)
 
-_push :: ClonedRepo -> App ()
-_push ClonedRepo{..} = do
+push :: ClonedRepo -> App ()
+push ClonedRepo{..} = do
     pushed <- success $ git_ ["push"]
     when pushed $ return ()
     git_ ["fetch", "origin"]
     rebased <- success $ git ["rebase", "origin/HEAD"]
     when rebased $ git_ ["push"]
     conflicts <- parseConflicts <$> git ["status", "--porcelain"]
-    throwError $ PushFailed conflicts
+    unless (null conflicts) $ throwError $ PushFailed conflicts
   where
     git_ = shell_ (Just repoPath) "git"
     git = shell (Just repoPath) "git"
@@ -265,7 +267,8 @@ main = do
         changes <- liftEither $ parseChanges input
         repo <- prepareRepo repoUrl repoPath
         mapM_ (applyChange repo) changes
-
+        mapM_ (commit repo) changes
+        push repo
     case result of
         Right _ -> putStrLn "Success!"
         Left e -> TIO.putStrLn $ verboseError e

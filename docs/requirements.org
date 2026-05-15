@@ -1,11 +1,15 @@
 * Requirements
 ** Modify page
 #+begin_quote
-When asked to modify a page, the system shall publish it immediately
+When asked to modify a page, the system shall replace the relevant fragment with a new one, and publish teh page immediately.
+#+end_quote
+** Overwrite page
+#+begin_quote
+When asked to write a page, the system shall write over the page, even if it exists, and publish it immediately
 #+end_quote
 ** Create page
 #+begin_quote
-When asked to create a page, the system shall publish it immediately
+When asked to create a page, the system shall create it if it doesn't exist, and publish it immediately
 #+end_quote
 ** Delete page
 #+begin_quote
