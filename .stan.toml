@@ -1,0 +1,6 @@
+# Disable warnings about length/reverse on "infinite" lists
+# Our lists are always finite (hooks, errors, history)
+
+check = [
+    { type = "Exclude", id = "STAN-0103", scope = "all" }
+]

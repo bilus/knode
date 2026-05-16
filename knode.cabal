@@ -25,9 +25,12 @@ source-repository head
 
 library
   exposed-modules:
-      Knode.Wiki
+      Knode.App
+      Knode.Capabilities
+      Knode.Data
+      Knode.Service
   other-modules:
-      Lib
+      Knode.Combinators
       Paths_knode
   autogen-modules:
       Paths_knode
@@ -64,6 +67,13 @@ test-suite knode-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Knode.Fake.Workspace
+      Knode.Fake.WorkspaceSpec
+      Knode.ServiceSpec
+      Knode.WikiSpec
+      Knode.WorkspaceSpec
+      Test.Helpers
+      Test.Helpers.Git
       Paths_knode
   autogen-modules:
       Paths_knode
@@ -72,5 +82,12 @@ test-suite knode-test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , containers
+    , directory
+    , filepath
+    , hspec
     , knode
+    , mtl
+    , shelly
+    , text
   default-language: Haskell2010

@@ -1,15 +1,19 @@
 * Requirements
-** Modify page
-#+begin_quote
-When asked to modify a page, the system shall replace the relevant fragment with a new one, and publish teh page immediately.
-#+end_quote
-** DONE Overwrite page
+** TODO Overwrite page
 #+begin_quote
 When asked to write a page, the system shall write over the page, even if it exists, and publish it immediately
+#+end_quote
+** TODO Directory creation
+#+begin_quote
+When the change is to a file under a non-existent directory, including nested directories, the system shall create them.
 #+end_quote
 ** Create page
 #+begin_quote
 When asked to create a page, the system shall create it if it doesn't exist, and publish it immediately
+#+end_quote
+** Modify page
+#+begin_quote
+When asked to modify a page, the system shall replace the relevant fragment with a new one, and publish teh page immediately.
 #+end_quote
 ** Delete page
 #+begin_quote
@@ -55,10 +59,6 @@ When making changes, each agent session has its own isolated local repo clone.
 #+begin_quote
 When asked to create a link between 2 pages, the system shall update the "See also" sections at the bottom of the respective pages.
 #+end_quote
-** DONE Directory creation
-#+begin_quote
-When the change is to a file under a non-existent directory, including nested directories, the system shall create them.
-#+end_quote
 ** Sandboxing
 #+begin_quote
 When path to the changed page points outside of the cloned repository, the system shall reject the change.
@@ -67,3 +67,49 @@ When path to the changed page points outside of the cloned repository, the syste
 #+begin_quote
 When help is requested, the system shall display a detailed prompt with usage instructions, including specification and examples of input JSON for all change types.
 #+end_quote
+* Loose spec
+  Proposed EARS Test Specifications
+
+  1. Write Page with Directory Creation
+
+  EARS: When asked to write a page under a non-existent directory, the system shall create all necessary parent
+  directories and write the page content.
+
+  Test scenario:
+  - Input: Write (Page "deep/nested/path/page.md") "content"
+  - Input: Repo path "/tmp/test-repo"
+  - Precondition: /tmp exists, other the directories do not exist
+  - Expected: File exists at path /tmp/test-repo/deep/nested/path/page.md with correct content, directories created
+
+  ---
+  2. Write Page Overwrites Existing
+
+  EARS: When asked to write a page that already exists, the system shall overwrite the existing content with the new content.
+
+  Test scenario:
+  - Input: Write (Page "existing.md") "new content"
+  - Precondition: existing.md contains "old content"
+  - Expected: File contains "new content"
+
+  ---
+  3. Batch Changes Applied Atomically
+
+  EARS: When asked to apply multiple changes, the system shall commit all changes in a single commit.
+
+  Test scenario:
+  - Input: [Write page1 "a", Write page2 "b", Write page3 "c"]
+  - Expected: All files created, single git commit containing all three
+
+  ---
+  - Input: Edit (Page "page.md") "old text" "new text"
+  - Precondition: File contains "prefix old text suffix"
+  - Expected: File contains "prefix new text suffix"
+
+  ---
+  5. Sandboxing Rejects Path Traversal
+
+  EARS: When the change targets a path outside the repository, the system shall reject the change with an error.
+
+  Test scenario:
+  - Input: Write (Page "../../../etc/passwd") "malicious"
+  - Expected: Error returned, no file written outside repo

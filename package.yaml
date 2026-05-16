@@ -29,7 +29,10 @@ ghc-options:
 library:
   source-dirs: src
   exposed-modules:
-    - Knode.Wiki
+    - Knode.App
+    - Knode.Capabilities
+    - Knode.Data
+    - Knode.Service
   dependencies:
     - shelly
     - text
@@ -61,3 +64,10 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - knode
+    - containers
+    - directory
+    - filepath
+    - hspec
+    - mtl
+    - shelly
+    - text

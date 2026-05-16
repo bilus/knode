@@ -29,4 +29,11 @@ main = do
     repoUrl = RepoUrl "git@github.com:bilus/knode-test.git"
     repo = Repo {..}
  #+end_src
-* TODO Add tests
+* DONE Add tests
+- [X] Fake
+- [X] Business logic
+- [ ] Real implementation
+  - [ ] Local paths work
+  - [ ] Dir created when applying changes to page
+  - [ ] Basic integration test with 2 local repositories.
+* TODO FS should have ~apply Change ..~ instead of ~save~.

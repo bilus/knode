@@ -10,9 +10,6 @@
     "haskellPackages.hoogle",
     "gmp@latest",
     "zlib@latest",
-    "python@3.12",
-    "pipx",
-    "graphviz",
     "stylish-haskell@latest",
     "fourmolu@latest"
   ],
@@ -21,9 +18,7 @@
   },
   "shell": {
     "init_hook": [
-      "echo \"knode dev shell — ghc $(ghc --numeric-version), hls $(haskell-language-server-wrapper --numeric-version 2>/dev/null || echo '?')\"",
-      "pipx install data-flow-diagram",
-      "pipx inject data-flow-diagram typing_extensions"
+      "echo \"knode dev shell — ghc $(ghc --numeric-version), hls $(haskell-language-server-wrapper --numeric-version 2>/dev/null || echo '?')\""
     ]
   }
 }
