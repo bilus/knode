@@ -49,6 +49,7 @@ data AppError
     | WrongSource !WikiSource !FilePath
     | PublishConflict ![FilePath]
     | ParseError !String !Text
+    | WrongPath !FilePath
     | ChangesNotApplied
     deriving (Show, Eq)
 
