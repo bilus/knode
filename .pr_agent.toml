@@ -1,80 +1,186 @@
-# Qodo PR Agent Configuration for Knode
-# Three-layer cake architecture enforcement
+# Qodo PR Agent Configuration for knode
+# See: https://github.com/qodo-ai/pr-agent/blob/main/pr_agent/settings/configuration.toml
 
-[review_agent]
-# Maximum thoroughness - show all findings
-inline_comments_severity_threshold = 1
+[config]
+# Enable broader context beyond just the diff
+allow_dynamic_context = true
+max_extra_lines_before_dynamic_context = 15
+patch_extra_lines_before = 8
+patch_extra_lines_after = 3
 
-# Require self-review checklist
-demand_self_review = true
+[github_action_config]
+auto_review = true
+auto_describe = true
+auto_improve = true
+pr_actions = ["opened", "reopened", "ready_for_review"]
 
-# Custom instructions for bug/security/performance detection
-issues_user_guidelines = """
-This is a Haskell project following the three-layer cake architecture pattern.
+# Commands that run automatically on PR events
+[github_app]
+pr_commands = [
+    "/describe --pr_description.final_update_message=false",
+    "/review",
+    "/improve",
+]
 
-MANDATORY CHECKS - Flag all violations as high severity:
+[pr_reviewer]
+# Enable thorough review features
+require_tests_review = true
+require_security_review = true
+require_estimate_effort_to_review = true
+require_ticket_analysis_review = true
+num_max_findings = 10
+persistent_comment = true
+final_update_message = true
+ask_and_reflect = true
 
-1. NO liftIO IN BUSINESS CODE
-   Business functions (polymorphic over capabilities) must never call liftIO directly.
-   A liftIO in Layer 2 means a missing capability typeclass.
-   VIOLATION: `liftIO (putStrLn ...)` in a function with signature like `(MonadX m, MonadError AppError m) => ...`
-
-2. NO DB TYPES IN BUSINESS SIGNATURES
-   Connection, Pool, Row, Statement must not appear in business function signatures.
-   These are Layer 1 types that leak abstraction.
-   VIOLATION: `fetchUser :: Connection -> Int -> AppM User`
-
-3. NO Either RETURNS FROM CAPABILITY METHODS
-   Typeclass methods must not return `Either`. The monad already carries errors via MonadError.
-   VIOLATION: `class MonadFoo m where getFoo :: Int -> m (Either AppError Foo)`
-
-4. EXCEPTIONS CAUGHT AT INSTANCE BOUNDARY ONLY
-   Business code must never use `try`, `catch`, or `handle`. Exception handling belongs in capability instances via tryIO/withDb helpers.
-   VIOLATION: `result <- liftIO (try someAction)` in business code
-
-5. NO Other/Unknown ESCAPE HATCH IN AppError
-   AppError must have specific constructors. Generic `Other Text` or `Unknown Text` catches become a code smell.
-
-6. PURE VALIDATION RETURNS Either, NOT MONAD
-   Layer 3 pure functions return `Either AppError a`, bridged to Layer 2 with liftEither'.
-   VIOLATION: `validateTitle :: MonadError AppError m => Text -> m Text`
-
-7. MULTI-STEP OPERATIONS NEED ROLLBACK STRATEGY
-   Sequences like `doA >> doB >> doC` where partial completion corrupts state need explicit rollback handling (transactions, bracket, or compensating actions).
-
-8. BUSINESS SIGNATURES MUST BE POLYMORPHIC
-   Business functions use `(MonadX m, MonadY m, MonadError AppError m) => ...` not concrete `AppM`.
-   VIOLATION: `createTodo :: Text -> AppM Todo` (should be polymorphic)
-
-9. NO MIXING ERROR TRACKS
-   Don't use both MonadError and throw custom exceptions in business code. Pick one channel.
-
-10. NO MANUAL Either UNWRAPPING
-    Use liftEither', not `case validateX of Left e -> throwError e; Right x -> ...`
-"""
-
-# Custom instructions for compliance/standards checking
-compliance_user_guidelines = """
-Haskell three-layer cake architecture compliance:
-
-LAYER SEPARATION:
+# Haskell three-layer cake architecture review focus
+extra_instructions = """
+This is a Haskell project following the three-layer cake architecture:
 - Layer 1 (IO shell): Resources, typeclass instances, tryIO boundary, HTTP handlers
 - Layer 2 (Business): Polymorphic functions with capability constraints, MonadError for domain errors
 - Layer 3 (Pure core): Domain types, pure validation returning Either
 
-CHECK FOR:
-- Type self-consistency: A type's methods must be correct regardless of call order or context
-- Capability method contracts: No IO types, no Either returns, no exception handling
-- Error model: Domain errors via MonadError/throwError, infra errors caught at boundary via tryIO
-- withX helpers: Each capability should have a helper like `withDb f = asks envConn >>= tryIO . f`
+MANDATORY CHECKS - Flag all violations:
 
-FLAG AS NON-COMPLIANT:
-- Direct IO in business layer
-- Concrete AppM in business signatures instead of polymorphic constraints
-- Missing or incomplete error boundary (tryIO/withX pattern)
-- Infrastructure concerns leaking into business logic
+1. NO liftIO IN BUSINESS CODE
+   Business functions (polymorphic over capabilities) must never call liftIO directly.
+   VIOLATION: `liftIO (putStrLn ...)` in a function with signature `(MonadX m, MonadError AppError m) => ...`
+
+2. NO DB/IO TYPES IN BUSINESS SIGNATURES
+   Connection, Pool, Handle, IORef must not appear in business function signatures.
+   VIOLATION: `fetchUser :: Connection -> Int -> AppM User`
+
+3. NO Either RETURNS FROM CAPABILITY METHODS
+   Typeclass methods must not return `Either`. Use MonadError instead.
+   VIOLATION: `class MonadFoo m where getFoo :: Int -> m (Either AppError Foo)`
+
+4. EXCEPTIONS CAUGHT AT INSTANCE BOUNDARY ONLY
+   Business code must never use `try`, `catch`, `handle`. Exception handling belongs in capability instances.
+   VIOLATION: `result <- liftIO (try someAction)` in business code
+
+5. BUSINESS SIGNATURES MUST BE POLYMORPHIC
+   Use `(MonadX m, MonadY m, MonadError AppError m) => ...` not concrete `AppM`.
+   VIOLATION: `createTodo :: Text -> AppM Todo`
+
+6. PURE VALIDATION RETURNS Either
+   Layer 3 functions return `Either AppError a`, bridged with liftEither'.
+   VIOLATION: `validateTitle :: MonadError AppError m => Text -> m Text`
+
+7. MULTI-STEP OPERATIONS NEED ROLLBACK
+   `doA >> doB >> doC` patterns where partial completion corrupts state need transactions/bracket/sagas.
+
+8. NO MANUAL Either UNWRAPPING
+   Use liftEither', not `case validateX of Left e -> throwError e; Right x -> ...`
+
+9. TYPE SELF-CONSISTENCY
+   A type's methods must be correct regardless of call order or context.
 """
 
-[review_agent_ux]
-# Show more findings before overflow
-finding_overflow_count = 10
+[pr_description]
+publish_labels = true
+add_original_user_description = true
+generate_ai_title = false
+use_bullet_points = true
+enable_pr_type = true
+enable_semantic_files_types = true
+enable_pr_diagram = true
+final_update_message = true
+
+extra_instructions = """
+For this Haskell project:
+- Highlight module/namespace changes
+- Note any new dependencies in .cabal or package.yaml
+- Flag changes to capability typeclasses
+- Identify changes to AppError constructors
+- Note changes to Env or resource management
+- Flag any new MonadX constraints added to business functions
+"""
+
+[pr_code_suggestions]
+# More actionable suggestions
+commitable_code_suggestions = true
+focus_only_on_problems = true
+suggestions_score_threshold = 5
+num_code_suggestions_per_chunk = 4
+max_number_of_calls = 4
+persistent_comment = true
+auto_extended_mode = true
+
+extra_instructions = """
+For Haskell code suggestions:
+- Suggest polymorphic signatures over concrete AppM
+- Recommend liftEither' over manual case analysis on Either
+- Flag missing MonadError constraints
+- Suggest withX helpers for new capabilities
+- Recommend bracket/finally for resource cleanup
+- Flag partial functions (head, tail, fromJust) - suggest safe alternatives
+- Suggest deriving strategies (stock, newtype, anyclass, via)
+- Recommend strict fields in data types where appropriate
+- Flag lazy IO patterns - suggest streaming alternatives
+- Suggest qualified imports for clarity
+"""
+
+[best_practices]
+enable_global_best_practices = true
+max_lines_allowed = 1000
+
+content = """
+## Haskell Three-Layer Cake Best Practices
+
+### Layer Separation
+- Layer 1 (IO): Typeclass instances, tryIO boundary, HTTP handlers, main
+- Layer 2 (Business): Polymorphic `m` with capability + MonadError constraints
+- Layer 3 (Pure): Domain types, validation as `Either AppError a`
+
+### Capability Typeclasses
+- One typeclass per external dependency (MonadDb, MonadHttp, MonadLogger)
+- Methods return `m a`, never `m (Either e a)` - errors flow through MonadError
+- Each capability gets a `withX` helper: `withDb f = asks envConn >>= tryIO . f`
+
+### Error Handling
+- Domain errors: constructors of AppError, raised via throwError/liftEither'
+- Infra errors: IO exceptions caught by tryIO at instance boundary, converted to AppError
+- Never catch exceptions in business code
+- No `Other Text` escape hatch in AppError - use specific constructors
+
+### Business Logic
+- Signatures are polymorphic: `(MonadX m, MonadError AppError m) => ...`
+- Never use liftIO - if you need IO, add a capability
+- Use liftEither' to bridge pure validation into the monad
+- Multi-step operations need explicit rollback strategy
+
+### Testing
+- Business logic testable with pure TestM over State + Except
+- Mock capabilities via alternative typeclass instances
+- Test pure Layer 3 functions directly with QuickCheck/Hspec
+
+### Type Safety
+- Prefer newtypes for domain identifiers (UserId, TodoId)
+- Use smart constructors for validated types
+- Derive via for newtype instances where appropriate
+- Enable -Wall -Werror in CI
+
+### Resources
+- Use bracket/finally for cleanup
+- Close handles, connections, channels explicitly
+- Prefer streaming over lazy IO for large data
+"""
+
+[auto_best_practices]
+enable_auto_best_practices = true
+utilize_auto_best_practices = true
+max_patterns = 5
+
+[pr_test]
+num_tests = 3
+avoid_mocks = false
+testing_framework = "hspec"
+
+extra_instructions = """
+Generate tests using Hspec.
+For business logic, create a TestM that implements capabilities via State.
+Use QuickCheck properties for pure functions.
+Include edge cases: empty inputs, boundary values, error conditions.
+Test both success and failure paths through MonadError.
+Mock external capabilities, don't mock business logic.
+"""
