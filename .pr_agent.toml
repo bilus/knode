@@ -1,0 +1,80 @@
+# Qodo PR Agent Configuration for Knode
+# Three-layer cake architecture enforcement
+
+[review_agent]
+# Maximum thoroughness - show all findings
+inline_comments_severity_threshold = 1
+
+# Require self-review checklist
+demand_self_review = true
+
+# Custom instructions for bug/security/performance detection
+issues_user_guidelines = """
+This is a Haskell project following the three-layer cake architecture pattern.
+
+MANDATORY CHECKS - Flag all violations as high severity:
+
+1. NO liftIO IN BUSINESS CODE
+   Business functions (polymorphic over capabilities) must never call liftIO directly.
+   A liftIO in Layer 2 means a missing capability typeclass.
+   VIOLATION: `liftIO (putStrLn ...)` in a function with signature like `(MonadX m, MonadError AppError m) => ...`
+
+2. NO DB TYPES IN BUSINESS SIGNATURES
+   Connection, Pool, Row, Statement must not appear in business function signatures.
+   These are Layer 1 types that leak abstraction.
+   VIOLATION: `fetchUser :: Connection -> Int -> AppM User`
+
+3. NO Either RETURNS FROM CAPABILITY METHODS
+   Typeclass methods must not return `Either`. The monad already carries errors via MonadError.
+   VIOLATION: `class MonadFoo m where getFoo :: Int -> m (Either AppError Foo)`
+
+4. EXCEPTIONS CAUGHT AT INSTANCE BOUNDARY ONLY
+   Business code must never use `try`, `catch`, or `handle`. Exception handling belongs in capability instances via tryIO/withDb helpers.
+   VIOLATION: `result <- liftIO (try someAction)` in business code
+
+5. NO Other/Unknown ESCAPE HATCH IN AppError
+   AppError must have specific constructors. Generic `Other Text` or `Unknown Text` catches become a code smell.
+
+6. PURE VALIDATION RETURNS Either, NOT MONAD
+   Layer 3 pure functions return `Either AppError a`, bridged to Layer 2 with liftEither'.
+   VIOLATION: `validateTitle :: MonadError AppError m => Text -> m Text`
+
+7. MULTI-STEP OPERATIONS NEED ROLLBACK STRATEGY
+   Sequences like `doA >> doB >> doC` where partial completion corrupts state need explicit rollback handling (transactions, bracket, or compensating actions).
+
+8. BUSINESS SIGNATURES MUST BE POLYMORPHIC
+   Business functions use `(MonadX m, MonadY m, MonadError AppError m) => ...` not concrete `AppM`.
+   VIOLATION: `createTodo :: Text -> AppM Todo` (should be polymorphic)
+
+9. NO MIXING ERROR TRACKS
+   Don't use both MonadError and throw custom exceptions in business code. Pick one channel.
+
+10. NO MANUAL Either UNWRAPPING
+    Use liftEither', not `case validateX of Left e -> throwError e; Right x -> ...`
+"""
+
+# Custom instructions for compliance/standards checking
+compliance_user_guidelines = """
+Haskell three-layer cake architecture compliance:
+
+LAYER SEPARATION:
+- Layer 1 (IO shell): Resources, typeclass instances, tryIO boundary, HTTP handlers
+- Layer 2 (Business): Polymorphic functions with capability constraints, MonadError for domain errors
+- Layer 3 (Pure core): Domain types, pure validation returning Either
+
+CHECK FOR:
+- Type self-consistency: A type's methods must be correct regardless of call order or context
+- Capability method contracts: No IO types, no Either returns, no exception handling
+- Error model: Domain errors via MonadError/throwError, infra errors caught at boundary via tryIO
+- withX helpers: Each capability should have a helper like `withDb f = asks envConn >>= tryIO . f`
+
+FLAG AS NON-COMPLIANT:
+- Direct IO in business layer
+- Concrete AppM in business signatures instead of polymorphic constraints
+- Missing or incomplete error boundary (tryIO/withX pattern)
+- Infrastructure concerns leaking into business logic
+"""
+
+[review_agent_ux]
+# Show more findings before overflow
+finding_overflow_count = 10
