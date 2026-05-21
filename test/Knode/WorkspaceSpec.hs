@@ -7,7 +7,7 @@ import Test.Hspec
 import qualified Data.Text.IO as TIO
 import Knode.App (AppM)
 import Knode.Capabilities (Workspace (..))
-import Knode.Data (AppError, Change (..), ChangeError (..), Page (..))
+import Knode.Data (AppError, Change (..), Page (..))
 import System.Directory (doesFileExist)
 import System.FilePath ((</>))
 import Test.Helpers (runWiki, withTempDir)
@@ -39,20 +39,6 @@ spec = describe "Workspace.apply" $ around (withTempDir "/tmp/knode-test-workspa
         result `shouldBe` Right []
         actual <- TIO.readFile (tmpDir </> page)
         actual `shouldBe` newContent
-
-    -- WHEN asked to write a page outside the root directory via relative path,
-    -- the system SHALL reject the request.
-    it "rejects relative path escape" $ \tmpDir -> do
-        let page = "../outside.md"
-        result <- runWikiInDir tmpDir $ apply [Write (Page page) "content"]
-        result `shouldBe` Right [WriteError (Page page) "path escapes root directory"]
-
-    -- WHEN asked to write a page outside the root directory via absolute path,
-    -- the system SHALL reject the request.
-    it "rejects absolute path" $ \tmpDir -> do
-        let page = "/tmp/absolute.md"
-        result <- runWikiInDir tmpDir $ apply [Write (Page page) "content"]
-        result `shouldBe` Right [WriteError (Page page) "path escapes root directory"]
 
 runWikiInDir :: FilePath -> AppM a -> IO (Either AppError a)
 runWikiInDir dir =

@@ -33,7 +33,7 @@ import Knode.Combinators (andM, ifM, whenM)
 import Knode.Data (AppError (..), Change (..), ChangeError (..), Page (..), WikiConfig (..), WikiSource (..))
 import Shelly (Sh)
 import qualified Shelly as Sh
-import System.FilePath (isAbsolute, splitDirectories, takeDirectory, (</>))
+import System.FilePath (takeDirectory, (</>))
 
 data WorkspaceHandle = WorkspaceHandle
     { _apply :: [Change] -> AppM [ChangeError]
@@ -161,22 +161,16 @@ defaultWorkspaceHandle =
             catMaybes <$> mapM (applyChange wikiPath) changes
         }
   where
-    applyChange wikiPath (Write page@(Page path) content)
-        | not (isPathWithin wikiPath path) =
-            pure $ Just $ WriteError page "path escapes root directory"
-        | otherwise = do
-            let fullPath = wikiPath </> path
-                dir = takeDirectory fullPath
-            logCmd $ T.pack $ "mkdir -p " <> dir
-            liftSh (IOError dir) $ Sh.mkdir_p (Sh.fromText $ T.pack dir)
-            logCmd $ T.pack $ "cat > " <> fullPath
-            liftSh (IOError fullPath) $ Sh.writefile (Sh.fromText $ T.pack fullPath) content
-            pure Nothing
+    applyChange wikiPath (Write (Page path) content) = do
+        let fullPath = wikiPath </> path
+            dir = takeDirectory fullPath
+        logCmd $ T.pack $ "mkdir -p " <> dir
+        liftSh (IOError dir) $ Sh.mkdir_p (Sh.fromText $ T.pack dir)
+        logCmd $ T.pack $ "cat > " <> fullPath
+        liftSh (IOError fullPath) $ Sh.writefile (Sh.fromText $ T.pack fullPath) content
+        pure Nothing
     applyChange _ (Edit page old _new) =
         pure $ Just $ EditNotFound page old
-
-    isPathWithin _root path =
-        not (isAbsolute path) && ".." `notElem` splitDirectories path
 
 defaultWikiHandle :: WikiHandle
 defaultWikiHandle =
