@@ -11,7 +11,8 @@
     "gmp@latest",
     "zlib@latest",
     "stylish-haskell@latest",
-    "fourmolu@latest"
+    "fourmolu@latest",
+    "git-ps-rs@7.3.1"
   ],
   "env": {
     "PATH": "$PATH:/usr/bin"
