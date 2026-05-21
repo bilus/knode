@@ -48,6 +48,6 @@ makeChanges description changes = do
 
     -- TODO: ../same_dir == ./ and thus is ok
 
-    isPathWithin :: FilePath -> Bool
-    isPathWithin path =
+    isPathWithin :: FilePath -> FilePath -> Bool
+    isPathWithin _root path =
         not (isAbsolute path) && ".." `notElem` splitDirectories path
