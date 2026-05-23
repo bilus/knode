@@ -10,10 +10,10 @@ import Data.Either (isRight)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Knode.Capabilities (Wiki (..), Workspace (..))
-import Knode.Data (Change (..), Page (..))
+import Knode.Data (Change (..), Page (..), PageOp (..))
 import System.Directory (doesDirectoryExist, doesFileExist)
 import System.FilePath ((</>))
-import Test.Helpers (runWiki, withTempDir2)
+import Test.Helpers (runSimpleApp, withTempDir2)
 import Test.Helpers.Git (gitClone, initBareRepo, initRepoWithFile)
 
 spec :: Spec
@@ -23,7 +23,7 @@ spec = describe "Wiki.sync" $ around (withTempDir2 "/tmp/knode-test-remote" "/tm
     it "clones when local directory does not exist" $ \(remoteDir, localDir) -> do
         let wikiDir = localDir </> "wiki"
         initBareRepo remoteDir
-        runWiki ("file://" <> T.pack remoteDir) wikiDir sync
+        runSimpleApp ("file://" <> T.pack remoteDir) wikiDir sync
             `shouldReturn` Right ()
         doesDirectoryExist (wikiDir </> ".git")
             `shouldReturn` True
@@ -36,7 +36,7 @@ spec = describe "Wiki.sync" $ around (withTempDir2 "/tmp/knode-test-remote" "/tm
         initRepoWithFile remoteDir "page.md" "remote content"
         gitClone remoteUrl wikiDir
         TIO.writeFile (wikiDir </> "local.md") "local only"
-        runWiki remoteUrl wikiDir sync
+        runSimpleApp remoteUrl wikiDir sync
             `shouldReturn` Right ()
         doesFileExist (wikiDir </> "local.md")
             `shouldReturn` False
@@ -54,7 +54,7 @@ spec = describe "Wiki.sync" $ around (withTempDir2 "/tmp/knode-test-remote" "/tm
         initBareRepo thisRemoteDir
         initBareRepo otherRemoteDir
         gitClone otherRemote wikiDir
-        isRight <$> runWiki thisRemote wikiDir sync
+        isRight <$> runSimpleApp thisRemote wikiDir sync
             `shouldReturn` False
 
     -- WHEN sync is called after staging but before publishing,
@@ -62,10 +62,10 @@ spec = describe "Wiki.sync" $ around (withTempDir2 "/tmp/knode-test-remote" "/tm
     it "discards staged unpublished changes on sync" $ \(remoteDir, localDir) -> do
         let wikiDir = localDir </> "wiki"
             remoteUrl = "file://" <> T.pack remoteDir
-            change = Write (Page "new.md") "new content"
+            change = PageChange (Page "new.md") (Overwrite "new content")
         initRepoWithFile remoteDir "page.md" "original"
         gitClone remoteUrl wikiDir
-        result <- runWiki remoteUrl wikiDir $ do
+        result <- runSimpleApp remoteUrl wikiDir $ do
             sync
             void $ apply [change]
             stage [change] "Add new page"
@@ -81,10 +81,10 @@ spec = describe "Wiki.sync" $ around (withTempDir2 "/tmp/knode-test-remote" "/tm
         let wikiDir = localDir </> "wiki"
             verifyDir = localDir </> "verify"
             remoteUrl = "file://" <> T.pack remoteDir
-            lostChange = Write (Page "unstaged.md") "staged content"
-            survivingChange = Write (Page "staged.md") "staged content"
+            lostChange = PageChange (Page "unstaged.md") (Overwrite "staged content")
+            survivingChange = PageChange (Page "staged.md") (Overwrite "staged content")
         initBareRepo remoteDir
-        result <- runWiki remoteUrl wikiDir $
+        result <- runSimpleApp remoteUrl wikiDir $
             do
                 sync
                 void $ apply [survivingChange, lostChange]

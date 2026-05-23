@@ -1,13 +1,13 @@
 * Requirements
-** TODO Overwrite page
+** DONE Overwrite page
 #+begin_quote
 When asked to write a page, the system shall write over the page, even if it exists, and publish it immediately
 #+end_quote
-** TODO Directory creation
+** DONE Directory creation
 #+begin_quote
 When the change is to a file under a non-existent directory, including nested directories, the system shall create them.
 #+end_quote
-** Create page
+** DONE Create page
 #+begin_quote
 When asked to create a page, the system shall create it if it doesn't exist, and publish it immediately
 #+end_quote
@@ -19,7 +19,7 @@ When asked to modify a page, the system shall replace the relevant fragment with
 #+begin_quote
 When asked to delete a page, the system shall publish the removal immediately.
 #+end_quote
-** Batching changes to pages
+** DONE Batching changes to pages
 #+begin_quote
 When asked to batch changes (modify/create/delete), the system shall publish them atomically.
 #+end_quote

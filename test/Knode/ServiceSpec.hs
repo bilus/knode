@@ -8,8 +8,9 @@ import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
 
 import Control.Monad (forM_)
 import qualified Data.Map as Map
-import Knode.Data (AppError (..), Change (..), Page (..))
-import Knode.Fake.Workspace (Author (..), FakeFS (..), FakeM, FakeState (..), beforePublishHook, clearHooks, getLocalFS, getRemoteFS, simulateRemoteChange)
+import Knode.Data (AppError (..), Change (..), Page (..), PageOp (..))
+import Knode.Fake.Data (Author (..), FakeFS (..))
+import Knode.Fake.Monad (FakeM, FakeState (..), beforePublishHook, clearHooks, getLocalFS, getRemoteFS, simulateRemoteChange)
 import Knode.Service (makeChanges)
 import Test.Helpers (shouldBeErrorAnd, shouldBeSuccessAnd)
 
@@ -29,7 +30,7 @@ spec = describe "makeChanges" $ do
             beforePublishHook $ do
                 causeConflict
                 clearHooks
-            makeChanges "Add page" [Write (Page "page.md") "content"]
+            makeChanges "Add page" [PageChange (Page "page.md") (Overwrite "content")]
             (localFS, remoteFS) <- (,) <$> getLocalFS <*> getRemoteFS
             pure (localFS, remoteFS)
             --
@@ -40,7 +41,7 @@ spec = describe "makeChanges" $ do
     it "gives up after max retries" $
         do
             beforePublishHook causeConflict
-            makeChanges "Add page" [Write (Page "page.md") "content"]
+            makeChanges "Add page" [PageChange (Page "page.md") (Overwrite "content")]
             --
             `shouldBeErrorAnd` \(err, _) ->
                 err `shouldBe` PublishConflict []
@@ -49,14 +50,17 @@ spec = describe "makeChanges" $ do
         do
             makeChanges
                 "Edit pages"
-                [ Edit (Page "a.md") "not found 1" "new1"
-                , Edit (Page "b.md") "not found 2" "new2"
+                [ PageChange (Page "a.md") (ReplaceAll "not found 1" "new1")
+                , PageChange (Page "b.md") (ReplaceAll "not found 2" "new2")
                 ]
             --
             `shouldBeErrorAnd` \(err, FakeState{stateReportedErrors, stateLocal, stateRemote}) -> do
                 err `shouldBe` ChangesNotApplied
                 length stateReportedErrors `shouldBe` 2
                 stateLocal `shouldBe` stateRemote
+
+    -- TODO: WHEN replacing text in a non-existent page,
+    -- the system SHALL report an error for that page.
 
     -- WHEN applying changes with paths outside the root directory,
     -- the system SHALL reject the request.
@@ -65,7 +69,7 @@ spec = describe "makeChanges" $ do
             do
                 makeChanges
                     "Escape attempt"
-                    [ Write (Page wrongPath) "malicious"
+                    [ PageChange (Page wrongPath) (Overwrite "malicious")
                     ]
                 --
                 `shouldBeErrorAnd` \(err, FakeState{stateLocal}) -> do
@@ -76,4 +80,4 @@ causeConflict :: FakeM ()
 causeConflict =
     simulateRemoteChange
         (Author "other@example.com")
-        (Write (Page "other.md") "other")
+        (PageChange (Page "other.md") (Overwrite "other"))

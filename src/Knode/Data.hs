@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Knode.Data (Page (..), Change (..), WikiSource (..), WikiConfig (..), AppError (..), ChangeError (..), pageFullPath, parseChanges) where
+module Knode.Data (Page (..), Change (..), PageOp (..), WikiSource (..), WikiConfig (..), AppError (..), ChangeError (..), pageFullPath, parseChanges) where
 
 import Data.Aeson (FromJSON, ToJSON, eitherDecodeStrict)
 import Data.Bifunctor (first)
@@ -18,16 +18,22 @@ data Page = Page FilePath
 instance FromJSON Page
 instance ToJSON Page
 
--- | A change to a wiki page.
-data Change
-    = -- | Create or overwrite a page
-      Write !Page !Text
-    | -- | Replace old text with new text
-      Edit !Page !Text !Text
+data Change = PageChange !Page !PageOp
     deriving (Generic, Show, Eq)
 
 instance FromJSON Change
 instance ToJSON Change
+
+-- | A change to a wiki page.
+data PageOp
+    = -- | Create or overwrite a page
+      Overwrite !Text
+    | -- | Replace old text with new text
+      ReplaceAll !Text !Text
+    deriving (Generic, Show, Eq)
+
+instance FromJSON PageOp
+instance ToJSON PageOp
 
 -- | Where the wiki content lives (e.g., a git remote URL).
 data WikiSource = WikiSource Text
