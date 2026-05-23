@@ -67,8 +67,9 @@ test-suite knode-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Knode.Fake.Workspace
-      Knode.Fake.WorkspaceSpec
+      Knode.Fake.Data
+      Knode.Fake.Monad
+      Knode.FakeSpec
       Knode.ServiceSpec
       Knode.WikiSpec
       Knode.WorkspaceSpec

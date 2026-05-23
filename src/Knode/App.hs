@@ -30,7 +30,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Knode.Capabilities (Config (..), Reporting (..), Wiki (..), Workspace (..))
 import Knode.Combinators (andM, ifM, whenM)
-import Knode.Data (AppError (..), Change (..), ChangeError (..), Page (..), WikiConfig (..), WikiSource (..))
+import Knode.Data (AppError (..), Change (..), ChangeError (..), Page (..), PageOp (..), WikiConfig (..), WikiSource (..))
 import Shelly (Sh)
 import qualified Shelly as Sh
 import System.FilePath (takeDirectory, (</>))
@@ -150,8 +150,7 @@ formatChangeError (WriteError (Page p) msg) =
     "Write failed: " <> T.pack p <> ": " <> msg
 
 changePage :: Change -> Page
-changePage (Write page _) = page
-changePage (Edit page _ _) = page
+changePage (PageChange page _) = page
 
 defaultWorkspaceHandle :: WorkspaceHandle
 defaultWorkspaceHandle =
@@ -161,16 +160,23 @@ defaultWorkspaceHandle =
             catMaybes <$> mapM (applyChange wikiPath) changes
         }
   where
-    applyChange wikiPath (Write (Page path) content) = do
-        let fullPath = wikiPath </> path
-            dir = takeDirectory fullPath
+    applyChange wikiPath (PageChange (Page path) (Overwrite content)) = do
+        ensureDir wikiPath path
+        logCmd $ T.pack $ "Overwrite " <> wikiPath </> path
+        overwrite wikiPath path content
+        pure Nothing
+    applyChange wikiPath (PageChange (Page path) (ReplaceAll old new)) = do
+        ensureDir wikiPath path
+        logCmd $ T.pack $ "ReplaceAll " <> wikiPath </> path
+        T.replace old new <$> readFrom wikiPath path >>= overwrite wikiPath path
+        pure Nothing
+    overwrite root path content = liftSh (IOError path) $ Sh.writefile (toShPath $ root </> path) content
+    readFrom root path = liftSh (IOError path) $ Sh.readfile (toShPath $ root </> path)
+    toShPath = Sh.fromText . T.pack
+    ensureDir root path = do
+        let dir = takeDirectory $ root </> path
         logCmd $ T.pack $ "mkdir -p " <> dir
         liftSh (IOError dir) $ Sh.mkdir_p (Sh.fromText $ T.pack dir)
-        logCmd $ T.pack $ "cat > " <> fullPath
-        liftSh (IOError fullPath) $ Sh.writefile (Sh.fromText $ T.pack fullPath) content
-        pure Nothing
-    applyChange _ (Edit page old _new) =
-        pure $ Just $ EditNotFound page old
 
 defaultWikiHandle :: WikiHandle
 defaultWikiHandle =

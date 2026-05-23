@@ -25,9 +25,9 @@ main = do
     wikiSource = WikiSource "git@github.com:bilus/knode-test.git"
     wikiMaxRetries = 3
     env =
-            Env
-                { envWiki = WikiConfig{..}
-                , envWorkspaceHandle = defaultWorkspaceHandle
-                , envWikiHandle = defaultWikiHandle
-                , envReportingHandle = defaultReportingHandle
-                }
+        Env
+            { envWiki = WikiConfig{..}
+            , envWorkspaceHandle = defaultWorkspaceHandle
+            , envWikiHandle = defaultWikiHandle
+            , envReportingHandle = defaultReportingHandle
+            }

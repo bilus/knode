@@ -10,7 +10,7 @@ module Test.Helpers (
     testConfig,
     withTempDir,
     withTempDir2,
-    runWiki,
+    runSimpleApp,
 ) where
 
 import Test.Hspec (Expectation, expectationFailure)
@@ -19,7 +19,8 @@ import Control.Exception (bracket_, catch)
 import Data.Text (Text)
 import Knode.App (AppM, defaultEnv, runApp)
 import Knode.Data (AppError (..), WikiConfig (..), WikiSource (..))
-import Knode.Fake.Workspace (Author (..), FakeM, FakeState, emptyState, runFake)
+import Knode.Fake.Data (Author (..))
+import Knode.Fake.Monad (FakeM, FakeState, emptyState, runFake)
 import System.Directory (createDirectoryIfMissing, removeDirectoryRecursive)
 
 runTest :: FakeM a -> IO (Either AppError a, FakeState)
@@ -67,8 +68,8 @@ withTempDir2 dir1 dir2 action =
         withTempDir dir2 $ \d2 ->
             action (d1, d2)
 
-runWiki :: Text -> FilePath -> AppM a -> IO (Either AppError a)
-runWiki source localDir action = runApp env action
+runSimpleApp :: Text -> FilePath -> AppM a -> IO (Either AppError a)
+runSimpleApp source localDir action = runApp env action
   where
     env =
         defaultEnv

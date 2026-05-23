@@ -1,19 +1,13 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections #-}
 
-module Knode.Fake.Workspace (
-    Author (..),
-    FakeFS (..),
+module Knode.Fake.Monad (
     FakeState (..),
-    FakeM,
-    emptyFS,
+    FakeM (..),
     emptyState,
     runFake,
     execFake,
@@ -33,30 +27,15 @@ import Control.Monad.Except (ExceptT, MonadError (..), runExceptT)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (MonadReader, ReaderT, asks, runReaderT)
 import Control.Monad.State.Strict (MonadState, StateT, gets, modify', runStateT)
-import Data.List (isPrefixOf)
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
+import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
+import qualified Data.Text as T
 import Knode.Capabilities (Config (..), Reporting (..), Wiki (..), Workspace (..))
-import Knode.Data (AppError (..), Change (..), ChangeError (..), Page (..), WikiConfig (..))
-
-newtype Author = Author String
-    deriving (Show, Eq)
-
--- | Commit history, used to detect conflicts. Oldest first.
-type History = [(Author, Change)]
-
-data FakeFS = FakeFS
-    { fsFiles :: !(Map FilePath Text)
-    , fsHistory :: !History
-    }
-    deriving (Show, Eq)
-
-emptyFS :: FakeFS
-emptyFS = FakeFS Map.empty []
+import Knode.Data (AppError (..), Change (PageChange), ChangeError (..), Page (Page), PageOp (Overwrite, ReplaceAll), WikiConfig)
+import Knode.Fake.Data
 
 data FakeState = FakeState
     { stateLocal :: !FakeFS
@@ -89,6 +68,100 @@ execFake :: WikiConfig -> FakeState -> FakeM a -> IO (Either AppError (), FakeSt
 execFake cfg st action = do
     (result, finalState) <- runFake cfg st action
     pure (() <$ result, finalState)
+
+instance Config FakeM where
+    config :: FakeM WikiConfig
+    config = asks id
+
+instance Wiki FakeM where
+    sync :: FakeM ()
+    sync = do
+        remote <- gets stateRemote
+        modify' $ \st ->
+            st
+                { stateLocal = remote
+                , stateStagedFiles = Set.empty
+                }
+
+    stage :: [Change] -> Text -> FakeM ()
+    stage changes _description = do
+        let paths = map changePath changes
+        author <- gets stateAuthor
+        modify' $ \st ->
+            st
+                { stateStagedFiles = Set.union (stateStagedFiles st) (Set.fromList paths)
+                , stateLocal = addToHistory author changes (stateLocal st)
+                }
+      where
+        changePath (PageChange (Page p) _) = p
+
+    publish :: FakeM ()
+    publish = do
+        runBeforePublishHooks
+        checkConflict
+        newRemoteState <- getStagedFS
+        modify' $ \st -> st{stateRemote = newRemoteState, stateStagedFiles = Set.empty}
+
+instance Reporting FakeM where
+    reportChangeError :: ChangeError -> FakeM ()
+    reportChangeError err = modify' $ \st ->
+        st{stateReportedErrors = stateReportedErrors st ++ [err]}
+
+instance Workspace FakeM where
+    apply :: [Change] -> FakeM [ChangeError]
+    apply changes = catMaybes <$> mapM applyChange changes
+      where
+        applyChange (PageChange (Page path) (Overwrite content)) = do
+            modify' $ \st ->
+                st{stateLocal = (stateLocal st){fsFiles = Map.insert path content (fsFiles $ stateLocal st)}}
+            pure Nothing
+        applyChange (PageChange page (ReplaceAll old new)) = do
+            localFS <- gets stateLocal
+            if (not $ contains page old localFS)
+                then pure $ Just $ EditNotFound page old
+                else do
+                    modify' $ \st ->
+                        st{stateLocal = replaceAll page old new localFS}
+                    pure Nothing
+
+contains :: Page -> Text -> FakeFS -> Bool
+contains (Page path) old FakeFS{fsFiles} =
+    case Map.lookup path fsFiles of
+        Just content -> old `T.isInfixOf` content
+        Nothing -> False
+
+replaceAll :: Page -> Text -> Text -> FakeFS -> FakeFS
+replaceAll (Page path) old new fs@FakeFS{fsFiles} =
+    fs{fsFiles = Map.update replace path fsFiles}
+  where
+    replace content =
+        Just $ T.replace old new content
+
+runBeforePublishHooks :: FakeM ()
+runBeforePublishHooks = do
+    hooks <- gets stateBeforePublishHooks
+    sequence_ (reverse hooks)
+
+checkConflict :: FakeM ()
+checkConflict = do
+    localHistory <- gets $ fsHistory . stateLocal
+    remoteHistory <- gets $ fsHistory . stateRemote
+    when (isConflict localHistory remoteHistory) $
+        throwError $
+            PublishConflict []
+
+getStagedFS :: FakeM FakeFS
+getStagedFS = do
+    staged <- gets stateStagedFiles
+    local <- gets stateLocal
+    let localFiles = fsFiles local
+        stagedFiles = Map.filterWithKey (\k _ -> Set.member k staged) localFiles
+        newHistory = fsHistory local
+    pure
+        local
+            { fsFiles = stagedFiles
+            , fsHistory = newHistory
+            }
 
 getLocalFS :: FakeM FakeFS
 getLocalFS = gets stateLocal
@@ -123,87 +196,3 @@ clearHooks = modify' $ \st -> st{stateBeforePublishHooks = []}
 
 traceLog :: String -> FakeM ()
 traceLog msg = liftIO $ putStrLn $ "=== " ++ msg ++ " ==="
-
-instance Config FakeM where
-    config :: FakeM WikiConfig
-    config = asks id
-
-instance Workspace FakeM where
-    apply :: [Change] -> FakeM [ChangeError]
-    apply changes = catMaybes <$> mapM applyChange changes
-      where
-        applyChange (Write (Page path) content) = do
-            modify' $ \st ->
-                st{stateLocal = (stateLocal st){fsFiles = Map.insert path content (fsFiles $ stateLocal st)}}
-            pure Nothing
-        applyChange (Edit page old _new) =
-            pure $ Just $ EditNotFound page old
-
-instance Wiki FakeM where
-    sync :: FakeM ()
-    sync = do
-        remote <- gets stateRemote
-        modify' $ \st ->
-            st
-                { stateLocal = remote
-                , stateStagedFiles = Set.empty
-                }
-
-    stage :: [Change] -> Text -> FakeM ()
-    stage changes _description = do
-        let paths = map changePath changes
-        author <- gets stateAuthor
-        modify' $ \st ->
-            st
-                { stateStagedFiles = Set.union (stateStagedFiles st) (Set.fromList paths)
-                , stateLocal = addToHistory author changes (stateLocal st)
-                }
-      where
-        changePath (Write (Page p) _) = p
-        changePath (Edit (Page p) _ _) = p
-
-    publish :: FakeM ()
-    publish = do
-        runBeforePublishHooks
-        checkConflict
-        newRemoteState <- getStagedFS
-        modify' $ \st -> st{stateRemote = newRemoteState, stateStagedFiles = Set.empty}
-
-runBeforePublishHooks :: FakeM ()
-runBeforePublishHooks = do
-    hooks <- gets stateBeforePublishHooks
-    sequence_ (reverse hooks)
-
-addToHistory :: Author -> [Change] -> FakeFS -> FakeFS
-addToHistory author changes fs =
-    fs{fsHistory = fsHistory fs ++ map (author,) changes}
-
-isConflict :: History -> History -> Bool
-isConflict sourceHistory targetHistory =
-    not (targetHistory `isPrefixOf` sourceHistory)
-
-checkConflict :: FakeM ()
-checkConflict = do
-    localHistory <- gets $ fsHistory . stateLocal
-    remoteHistory <- gets $ fsHistory . stateRemote
-    when (isConflict localHistory remoteHistory) $
-        throwError $
-            PublishConflict []
-
-getStagedFS :: FakeM FakeFS
-getStagedFS = do
-    staged <- gets stateStagedFiles
-    local <- gets stateLocal
-    let localFiles = fsFiles local
-        stagedFiles = Map.filterWithKey (\k _ -> Set.member k staged) localFiles
-        newHistory = fsHistory local
-    pure
-        local
-            { fsFiles = stagedFiles
-            , fsHistory = newHistory
-            }
-
-instance Reporting FakeM where
-    reportChangeError :: ChangeError -> FakeM ()
-    reportChangeError err = modify' $ \st ->
-        st{stateReportedErrors = stateReportedErrors st ++ [err]}

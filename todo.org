@@ -10,13 +10,13 @@
 * DONE Use writer
 - ClonedRepo -> Repo
 - Add ReaderT
-- runWiki takes ClonedRepo
+- runSimpleApp takes ClonedRepo
 - Add repo function to get repo from reader
 - Remove repo from function arguments
  #+begin_src haskell
 main :: IO ()
 main = do
-    result <- runWiki repo $ do
+    result <- runSimpleApp repo $ do
         changes <- liftIO TIO.getContents >>= liftEither parseChanges
         fetch
         mapM_ applyChange changes
@@ -32,8 +32,8 @@ main = do
 * DONE Add tests
 - [X] Fake
 - [X] Business logic
-- [ ] Real implementation
-  - [ ] Local paths work
-  - [ ] Dir created when applying changes to page
-  - [ ] Basic integration test with 2 local repositories.
-* TODO FS should have ~apply Change ..~ instead of ~save~.
+- [X] Real implementation
+  - [X] Local paths work
+  - [X] Dir created when applying changes to page
+  - [X] Basic integration test with 2 local repositories.
+* DONE FS should have ~apply Change ..~ instead of ~save~.

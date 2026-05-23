@@ -37,17 +37,14 @@ makeChanges description changes = do
                 then throwError $ PublishConflict []
                 else go (remainingRetries - 1)
 
-    tryPublish :: (Wiki m, MonadError AppError m) => m Bool
     tryPublish = catchError (True <$ publish) (const $ pure False)
 
-    validateChange (Write (Page path) _)
-        | not (isPathWithin "" path) = throwError $ WrongPath path
-    validateChange (Edit (Page path) _ _)
-        | not (isPathWithin "" path) = throwError $ WrongPath path
+    validateChange (PageChange (Page path) _)
+        | not (isSafePath path) = throwError $ WrongPath path
     validateChange _ = pure ()
 
     -- TODO: ../same_dir == ./ and thus is ok
 
-    isPathWithin :: FilePath -> FilePath -> Bool
-    isPathWithin _root path =
+    isSafePath :: FilePath -> Bool
+    isSafePath path =
         not (isAbsolute path) && ".." `notElem` splitDirectories path

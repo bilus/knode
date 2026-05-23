@@ -4,13 +4,14 @@ module Knode.WorkspaceSpec (spec) where
 
 import Test.Hspec
 
+import Control.Monad (void)
 import qualified Data.Text.IO as TIO
 import Knode.App (AppM)
 import Knode.Capabilities (Workspace (..))
-import Knode.Data (AppError, Change (..), Page (..))
+import Knode.Data (AppError (..), Change (..), Page (..), PageOp (..))
 import System.Directory (doesFileExist)
 import System.FilePath ((</>))
-import Test.Helpers (runWiki, withTempDir)
+import Test.Helpers (runSimpleApp, withTempDir)
 
 spec :: Spec
 spec = describe "Workspace.apply" $ around (withTempDir "/tmp/knode-test-workspace") $ do
@@ -19,13 +20,13 @@ spec = describe "Workspace.apply" $ around (withTempDir "/tmp/knode-test-workspa
     it "creates parent directories and writes page" $ \tmpDir -> do
         let page = "subdir/nested/page.md"
             content = "Hello, world!"
-        result <- runWikiInDir tmpDir $ do
-            apply [Write (Page page) content]
+        result <- runAppInDir tmpDir $ do
+            apply [PageChange (Page page) (Overwrite content)]
         result `shouldBe` Right []
-        exists <- doesFileExist (tmpDir </> page)
-        exists `shouldBe` True
-        actual <- TIO.readFile (tmpDir </> page)
-        actual `shouldBe` content
+        doesFileExist (tmpDir </> page)
+            `shouldReturn` True
+        TIO.readFile (tmpDir </> page)
+            `shouldReturn` content
 
     -- WHEN asked to write a page that already exists,
     -- the system SHALL overwrite the existing content with the new content.
@@ -34,12 +35,35 @@ spec = describe "Workspace.apply" $ around (withTempDir "/tmp/knode-test-workspa
             oldContent = "Old content"
             newContent = "New content"
         TIO.writeFile (tmpDir </> page) oldContent
-        result <- runWikiInDir tmpDir $ do
-            apply [Write (Page page) newContent]
+        result <- runAppInDir tmpDir $ do
+            apply [PageChange (Page page) (Overwrite newContent)]
         result `shouldBe` Right []
-        actual <- TIO.readFile (tmpDir </> page)
-        actual `shouldBe` newContent
+        TIO.readFile (tmpDir </> page)
+            `shouldReturn` newContent
 
-runWikiInDir :: FilePath -> AppM a -> IO (Either AppError a)
-runWikiInDir dir =
-    runWiki "BAD URL" dir
+    -- WHEN asked to replace text in a page that does not exist,
+    -- the system SHALL report an error indicating that the page was not found.
+    it "reports error when replacing text in non-existent page" $ \tmpDir -> do
+        let page = "missing.md"
+            oldText = "not found"
+            newText = "new content"
+        result <- runAppInDir tmpDir $ do
+            apply [PageChange (Page page) (ReplaceAll oldText newText)]
+        case result of
+            Left (IOError "missing.md" _) -> pure ()
+            got -> expectationFailure $ "Expected IOError got " <> (show got)
+
+    -- WHEN asked to replace text in a page,
+    -- the system SHALL modify it on disk.
+    it "replaces text on disk" $ \tmpDir -> do
+        let page = "subdir/nested/page.md"
+            content = "Hello, world!"
+        void $ runAppInDir tmpDir $ do
+            void $ apply [PageChange (Page page) (Overwrite content)]
+            void $ apply [PageChange (Page page) (ReplaceAll "world" "WORLD")]
+        TIO.readFile (tmpDir </> page)
+            `shouldReturn` "Hello, WORLD!"
+
+runAppInDir :: FilePath -> AppM a -> IO (Either AppError a)
+runAppInDir dir =
+    runSimpleApp "BAD URL" dir
