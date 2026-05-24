@@ -19,6 +19,7 @@ module Knode.Fake.Monad (
     getRemoteFS,
     getStagedFiles,
     getReportedErrors,
+    getReportedQueryResults,
     traceLog,
 ) where
 
@@ -33,8 +34,8 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
-import Knode.Capabilities (Config (..), Reporting (..), Wiki (..), Workspace (..))
-import Knode.Data (AppError (..), Change (PageChange), ChangeError (..), Page (Page), PageOp (Overwrite, ReplaceAll), WikiConfig)
+import Knode.Capabilities (Config (..), Querying (..), Reporting (..), Wiki (..), Workspace (..))
+import Knode.Data (AppError (..), Change (PageChange), ChangeError (..), Page (Page), PageOp (Overwrite, ReplaceAll), Query (..), QueryResult (..), WikiConfig)
 import Knode.Fake.Data
 
 data FakeState = FakeState
@@ -43,11 +44,12 @@ data FakeState = FakeState
     , stateStagedFiles :: !(Set FilePath)
     , stateAuthor :: !Author
     , stateReportedErrors :: ![ChangeError]
+    , stateReportedQueryResults :: ![QueryResult]
     , stateBeforePublishHooks :: ![FakeM ()]
     }
 
 emptyState :: Author -> FakeState
-emptyState author = FakeState emptyFS emptyFS Set.empty author [] []
+emptyState author = FakeState emptyFS emptyFS Set.empty author [] [] []
 
 newtype FakeM a = FakeM {unFakeM :: ExceptT AppError (StateT FakeState (ReaderT WikiConfig IO)) a}
     deriving newtype
@@ -106,6 +108,9 @@ instance Reporting FakeM where
     reportChangeError :: ChangeError -> FakeM ()
     reportChangeError err = modify' $ \st ->
         st{stateReportedErrors = stateReportedErrors st ++ [err]}
+    reportQueryResult :: QueryResult -> FakeM ()
+    reportQueryResult result = modify' $ \st ->
+        st{stateReportedQueryResults = stateReportedQueryResults st ++ [result]}
 
 instance Workspace FakeM where
     apply :: [Change] -> FakeM [ChangeError]
@@ -123,6 +128,19 @@ instance Workspace FakeM where
                     modify' $ \st ->
                         st{stateLocal = replaceAll page old new localFS}
                     pure Nothing
+
+instance Querying FakeM where
+    execQuery :: Query -> FakeM QueryResult
+    execQuery (ReadPage (Page path)) = do
+        FakeFS{fsFiles} <- gets stateLocal
+        pure $ case Map.lookup path fsFiles of
+            Just content -> PageContent content
+            Nothing -> PageNotFound
+    execQuery (GrepPage (Page path) pat) = do
+        FakeFS{fsFiles} <- gets stateLocal
+        pure $ case Map.lookup path fsFiles of
+            Just content -> GrepMatches $ filter (pat `T.isInfixOf`) (T.lines content)
+            Nothing -> PageNotFound
 
 contains :: Page -> Text -> FakeFS -> Bool
 contains (Page path) old FakeFS{fsFiles} =
@@ -174,6 +192,9 @@ getStagedFiles = gets stateStagedFiles
 
 getReportedErrors :: FakeM [ChangeError]
 getReportedErrors = gets stateReportedErrors
+
+getReportedQueryResults :: FakeM [QueryResult]
+getReportedQueryResults = gets stateReportedQueryResults
 
 withAuthor :: Author -> FakeM a -> FakeM a
 withAuthor author action = do

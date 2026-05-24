@@ -3,13 +3,14 @@
 
 module Knode.Service (
     makeChanges,
+    query,
 ) where
 
 import Control.Monad (forM_, unless)
 import Control.Monad.Except (MonadError, catchError, throwError)
 import Data.Text (Text)
-import Knode.Capabilities (Config (..), Reporting (..), Wiki (..), Workspace (..))
-import Knode.Data (AppError (..), Change (..), Page (..), WikiConfig (..))
+import Knode.Capabilities (Config (..), Querying (..), Reporting (..), Wiki (..), Workspace (..))
+import Knode.Data (AppError (..), Change (..), Page (..), Query, QueryResult, WikiConfig (..))
 import System.FilePath (isAbsolute, splitDirectories)
 
 {- | Apply changes to the wiki and publish them. Syncs with the source first,
@@ -48,3 +49,6 @@ makeChanges description changes = do
     isSafePath :: FilePath -> Bool
     isSafePath path =
         not (isAbsolute path) && ".." `notElem` splitDirectories path
+
+query :: (Querying m, Reporting m) => Query -> m ()
+query q = execQuery q >>= reportQueryResult

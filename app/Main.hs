@@ -6,7 +6,7 @@ module Main (main) where
 import Control.Monad.Except (liftEither)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Text.IO as TIO
-import Knode.App (AppM, Env (..), defaultReportingHandle, defaultWikiHandle, defaultWorkspaceHandle, runApp)
+import Knode.App (AppM, Env (..), defaultQueryingHandle, defaultReportingHandle, defaultWikiHandle, defaultWorkspaceHandle, runApp)
 import Knode.Data (Change, WikiConfig (..), WikiSource (..), parseChanges)
 import Knode.Service (makeChanges)
 
@@ -30,4 +30,5 @@ main = do
             , envWorkspaceHandle = defaultWorkspaceHandle
             , envWikiHandle = defaultWikiHandle
             , envReportingHandle = defaultReportingHandle
+            , envQueryingHandle = defaultQueryingHandle
             }

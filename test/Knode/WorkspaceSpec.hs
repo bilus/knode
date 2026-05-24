@@ -7,8 +7,8 @@ import Test.Hspec
 import Control.Monad (void)
 import qualified Data.Text.IO as TIO
 import Knode.App (AppM)
-import Knode.Capabilities (Workspace (..))
-import Knode.Data (AppError (..), Change (..), Page (..), PageOp (..))
+import Knode.Capabilities (Querying (..), Workspace (..))
+import Knode.Data (AppError (..), Change (..), Page (..), PageOp (..), Query (..), QueryResult (..))
 import System.Directory (doesFileExist)
 import System.FilePath ((</>))
 import Test.Helpers (runSimpleApp, withTempDir)
@@ -63,6 +63,32 @@ spec = describe "Workspace.apply" $ around (withTempDir "/tmp/knode-test-workspa
             void $ apply [PageChange (Page page) (ReplaceAll "world" "WORLD")]
         TIO.readFile (tmpDir </> page)
             `shouldReturn` "Hello, WORLD!"
+
+    -- WHEN asked to read a page that exists,
+    -- the system SHALL return the page content.
+    it "reads page content" $ \tmpDir -> do
+        let page = "page.md"
+            content = "Hello, world!"
+        TIO.writeFile (tmpDir </> page) content
+        result <- runAppInDir tmpDir $ execQuery (ReadPage (Page page))
+        result `shouldBe` Right (PageContent content)
+
+    -- WHEN asked to read a page that does not exist,
+    -- the system SHALL return an error.
+    it "returns error for missing page" $ \tmpDir -> do
+        result <- runAppInDir tmpDir $ execQuery (ReadPage (Page "missing.md"))
+        case result of
+            Left (IOError "missing.md" _) -> pure ()
+            got -> expectationFailure $ "Expected IOError, got " <> show got
+
+    -- WHEN asked to grep a page,
+    -- the system SHALL return matching lines.
+    it "greps page content" $ \tmpDir -> do
+        let page = "page.md"
+            content = "line one\nfoo bar\nline three\nfoo baz"
+        TIO.writeFile (tmpDir </> page) content
+        result <- runAppInDir tmpDir $ execQuery (GrepPage (Page page) "foo")
+        result `shouldBe` Right (GrepMatches ["foo bar", "foo baz"])
 
 runAppInDir :: FilePath -> AppM a -> IO (Either AppError a)
 runAppInDir dir =
