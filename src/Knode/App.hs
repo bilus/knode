@@ -11,9 +11,11 @@ module Knode.App (
     WorkspaceHandle (..),
     WikiHandle (..),
     ReportingHandle (..),
+    QueryingHandle (..),
     defaultWorkspaceHandle,
     defaultWikiHandle,
     defaultReportingHandle,
+    defaultQueryingHandle,
     defaultEnv,
     runApp,
 ) where
@@ -28,9 +30,9 @@ import Data.Maybe (catMaybes)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import Knode.Capabilities (Config (..), Reporting (..), Wiki (..), Workspace (..))
+import Knode.Capabilities (Config (..), Querying (..), Reporting (..), Wiki (..), Workspace (..))
 import Knode.Combinators (andM, ifM, whenM)
-import Knode.Data (AppError (..), Change (..), ChangeError (..), Page (..), PageOp (..), WikiConfig (..), WikiSource (..))
+import Knode.Data (AppError (..), Change (..), ChangeError (..), Page (..), PageOp (..), Query (..), QueryResult (..), WikiConfig (..), WikiSource (..))
 import Shelly (Sh)
 import qualified Shelly as Sh
 import System.FilePath (takeDirectory, (</>))
@@ -46,6 +48,11 @@ data WikiHandle = WikiHandle
 
 data ReportingHandle = ReportingHandle
     { _reportChangeError :: ChangeError -> AppM ()
+    , _reportQueryResult :: QueryResult -> AppM ()
+    }
+
+data QueryingHandle = QueryingHandle
+    { _execQuery :: Query -> AppM QueryResult
     }
 
 data Env = Env
@@ -53,6 +60,7 @@ data Env = Env
     , envWorkspaceHandle :: !WorkspaceHandle
     , envWikiHandle :: !WikiHandle
     , envReportingHandle :: !ReportingHandle
+    , envQueryingHandle :: !QueryingHandle
     }
 
 newtype AppM a = AppM {unAppM :: ReaderT Env (ExceptT AppError Sh) a}
@@ -75,6 +83,7 @@ defaultEnv cfg =
         , envWorkspaceHandle = defaultWorkspaceHandle
         , envWikiHandle = defaultWikiHandle
         , envReportingHandle = defaultReportingHandle
+        , envQueryingHandle = defaultQueryingHandle
         }
 
 liftSh :: (Text -> AppError) -> Sh a -> AppM a
@@ -142,6 +151,10 @@ instance Wiki AppM where
 
 instance Reporting AppM where
     reportChangeError err = asks envReportingHandle >>= \h -> _reportChangeError h err
+    reportQueryResult result = asks envReportingHandle >>= \h -> _reportQueryResult h result
+
+instance Querying AppM where
+    execQuery q = asks envQueryingHandle >>= \h -> _execQuery h q
 
 formatChangeError :: ChangeError -> Text
 formatChangeError (EditNotFound (Page p) old) =
@@ -168,10 +181,10 @@ defaultWorkspaceHandle =
     applyChange wikiPath (PageChange (Page path) (ReplaceAll old new)) = do
         ensureDir wikiPath path
         logCmd $ T.pack $ "ReplaceAll " <> wikiPath </> path
-        T.replace old new <$> readFrom wikiPath path >>= overwrite wikiPath path
+        T.replace old new <$> readFile' wikiPath path >>= overwrite wikiPath path
         pure Nothing
     overwrite root path content = liftSh (IOError path) $ Sh.writefile (toShPath $ root </> path) content
-    readFrom root path = liftSh (IOError path) $ Sh.readfile (toShPath $ root </> path)
+    readFile' root path = liftSh (IOError path) $ Sh.readfile (toShPath $ root </> path)
     toShPath = Sh.fromText . T.pack
     ensureDir root path = do
         let dir = takeDirectory $ root </> path
@@ -189,7 +202,36 @@ defaultReportingHandle :: ReportingHandle
 defaultReportingHandle =
     ReportingHandle
         { _reportChangeError = \err -> liftIO $ TIO.putStrLn $ formatChangeError err
+        , _reportQueryResult = \result -> liftIO $ TIO.putStrLn $ formatQueryResult result
         }
+
+formatQueryResult :: QueryResult -> Text
+formatQueryResult (PageContent content) = content
+formatQueryResult (GrepMatches matches) = T.unlines matches
+formatQueryResult PageNotFound = "Page not found"
+
+defaultQueryingHandle :: QueryingHandle
+defaultQueryingHandle =
+    QueryingHandle
+        { _execQuery = _implExecQuery
+        }
+
+_implExecQuery :: Query -> AppM QueryResult
+_implExecQuery (ReadPage page) = PageContent <$> readPageContent page
+_implExecQuery (GrepPage page pat) =
+    GrepMatches . filter (pat `T.isInfixOf`) . T.lines <$> readPageContent page
+
+readPageContent :: Page -> AppM Text
+readPageContent (Page path) = do
+    WikiConfig{wikiPath} <- asks envWiki
+    let fullPath = wikiPath </> path
+    exists <- fileExists fullPath
+    if exists
+        then readFile' fullPath
+        else throwError $ IOError path "Page not found"
+  where
+    fileExists p = zeroExit $ shell_ Nothing "test" ["-f", p]
+    readFile' p = liftSh (IOError p) $ Sh.readfile (Sh.fromText $ T.pack p)
 
 isWikiPresent :: AppM Bool
 isWikiPresent = do

@@ -37,3 +37,7 @@ main = do
   - [X] Dir created when applying changes to page
   - [X] Basic integration test with 2 local repositories.
 * DONE FS should have ~apply Change ..~ instead of ~save~.
+* DONE Grep and read
+* TODO Grep -B -A
+* TODO Search
+* TODO MCP

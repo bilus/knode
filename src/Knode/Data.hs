@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Knode.Data (Page (..), Change (..), PageOp (..), WikiSource (..), WikiConfig (..), AppError (..), ChangeError (..), pageFullPath, parseChanges) where
+module Knode.Data (Page (..), Change (..), PageOp (..), Query (..), QueryResult (..), WikiSource (..), WikiConfig (..), AppError (..), ChangeError (..), pageFullPath, parseChanges) where
 
 import Data.Aeson (FromJSON, ToJSON, eitherDecodeStrict)
 import Data.Bifunctor (first)
@@ -34,6 +34,30 @@ data PageOp
 
 instance FromJSON PageOp
 instance ToJSON PageOp
+
+-- | A query to read wiki content.
+data Query
+    = -- | Read a page's content
+      ReadPage !Page
+    | -- | Search for text in a page
+      GrepPage !Page !Text
+    deriving (Generic, Show, Eq)
+
+instance FromJSON Query
+instance ToJSON Query
+
+-- | Result of a query.
+data QueryResult
+    = -- | Content of a page
+      PageContent !Text
+    | -- | Lines matching the grep pattern
+      GrepMatches ![Text]
+    | -- | Page not found
+      PageNotFound
+    deriving (Generic, Show, Eq)
+
+instance FromJSON QueryResult
+instance ToJSON QueryResult
 
 -- | Where the wiki content lives (e.g., a git remote URL).
 data WikiSource = WikiSource Text
